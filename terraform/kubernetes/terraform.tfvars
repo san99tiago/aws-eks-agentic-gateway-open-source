@@ -2,4 +2,7 @@
 aws_region         = "us-east-1"
 name_prefix        = "agentgateway-santi-open"
 kubernetes_version = "1.36"
-allowed_cidrs      = ["181.137.32.97/32"]
+allowed_cidrs = [
+  "181.137.32.97/32",   # home
+  "186.121.142.180/32", # ces-clinic
+]

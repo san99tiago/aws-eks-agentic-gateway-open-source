@@ -67,8 +67,11 @@ Not a console step, but manual by nature:
 
 ```bash
 curl -s https://checkip.amazonaws.com          # your current IP
-# edit terraform/kubernetes/terraform.tfvars -> allowed_cidrs = ["<ip>/32"]
-terraform -chdir=terraform/kubernetes apply     # EKS API endpoint allow-list
+# edit terraform/kubernetes/terraform.tfvars -> allowed_cidrs (append "<ip>/32" with a comment naming the location)
+# If you run this from the NEW location, the EKS API is not reachable yet and the Helm provider
+# will wrongly plan to CREATE the NodePools release. Open the API first with a targeted apply:
+terraform -chdir=terraform/kubernetes apply -target='module.eks.aws_eks_cluster.this[0]'
+terraform -chdir=terraform/kubernetes apply     # rest of stack 1 (persists the allowed_cidrs output)
 terraform -chdir=terraform/agentgateway apply   # NLB loadBalancerSourceRanges (via remote state)
 ```
 
@@ -80,5 +83,5 @@ terraform -chdir=terraform/agentgateway apply   # NLB loadBalancerSourceRanges (
 | 2 Gemini key | Not set (placeholder). Same behavior. |
 | 3 Gated Gemma | Not needed (ungated mirror in use). |
 | 4 Bedrock access | Already enabled, verified. |
-| 5 IP allow-list | `181.137.32.97/32` configured. |
+| 5 IP allow-list | `181.137.32.97/32` (home) and `186.121.142.180/32` (ces-clinic) configured on 2026-09-28. |
 | 0 Demo password | Set locally in `secrets.auto.tfvars` (not committed). |

@@ -73,6 +73,7 @@ flowchart TB
 ├── scripts/
 │   ├── validate_solution_scripts.sh # didactic validator (menu + CLI): LLM-GW, MCP-GW, routing, guardrails, security
 │   ├── deploy-all.sh · destroy-all.sh · get-gateway-url.sh · cognito-token.sh
+│   ├── agents/                      # Strands Agents samples: agent1.py (Bedrock Haiku), agent2.py (open models)
 │   └── tests/                       # individual suites + FastMCP test client
 └── terraform/
     ├── kubernetes/                  # Stack 1: VPC + EKS Auto Mode + custom NodePools (local Helm chart)
@@ -135,6 +136,55 @@ Manual actions (only optional API keys): [MANUAL_STEPS.md](MANUAL_STEPS.md).
 | `gemini-2.5-flash` | Gemini placeholder | key from Secrets Manager | ApplyGuardrail |
 | `gemma-3-4b-it` | InferencePool `gemma` | vLLM on g6.xlarge | ApplyGuardrail |
 | `llama3.2` | InferencePool `ollama` | Ollama `llama3.2:3b` on g6.xlarge | ApplyGuardrail |
+
+## Invoking LLMs from your local scripts
+
+The gateway is a plain **OpenAI-compatible** endpoint on HTTP port 80, reachable only from the
+allow-listed IPs. Any client that can talk to OpenAI can talk to it: set `base_url` to `http://<NLB>/v1`,
+pass any string as `api_key` (the gateway authenticates to Bedrock with Pod Identity), and use the
+client-facing model name from the catalog. Bedrock models and open models are invoked **exactly the same way**;
+only the `model` value changes.
+
+```bash
+export AGENTGATEWAY_URL=$(./scripts/get-gateway-url.sh)        # http://agentgateway-santi-open-nlb-....amazonaws.com
+curl -s $AGENTGATEWAY_URL/v1/models | jq -r '.data[].id'         # discovery
+
+# Bedrock (Claude Haiku 4.5, native guardrail)
+curl -s $AGENTGATEWAY_URL/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"Hola parcero"}]}'
+# Open model on the GPU nodes (Gemma 3 4B on vLLM, ApplyGuardrail prompt guard)
+curl -s $AGENTGATEWAY_URL/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"model":"gemma-3-4b-it","messages":[{"role":"user","content":"Who are you?"}]}'
+```
+
+```python
+# OpenAI SDK (poetry install --no-root provides it)
+from openai import OpenAI
+client = OpenAI(base_url=f"{AGENTGATEWAY_URL}/v1", api_key="not-needed")
+client.chat.completions.create(model="llama3.2", messages=[{"role": "user", "content": "hi"}])
+```
+
+### Strands Agents samples (`scripts/agents/`)
+
+| Script | Model | What it shows |
+| --- | --- | --- |
+| `agent1.py` | `claude-haiku-4-5` (override with `MODEL=nova-lite`, `nova-pro`, `smart`...) | Strands `OpenAIModel` pointed at the gateway, a local `@tool` (`hora_colombia`) whose tool-call round trip is translated OpenAI <-> Bedrock by agentgateway, token usage |
+| `agent2.py` | `gemma-3-4b-it` (override with `MODEL=llama3.2`) | Same agent against a self-hosted model behind an `InferencePool`; a blocked prompt (PII) surfaces as `PermissionDeniedError` 403 from the prompt guard |
+
+```bash
+poetry install --no-root                                   # installs strands-agents[openai]
+export AGENTGATEWAY_URL=$(./scripts/get-gateway-url.sh)   # optional: the scripts fall back to kubectl
+.venv/bin/python scripts/agents/agent1.py "Que hora es en Colombia y que es EKS Auto Mode?"
+MODEL=llama3.2 .venv/bin/python scripts/agents/agent2.py "What model are you?"
+```
+
+Two gotchas found while wiring Strands to the gateway (both handled in the samples):
+
+- Strands always sends `"tools": []`. Bedrock rejects an empty tool list with HTTP 400 `The provided request is not valid`.
+  Give the agent at least one tool (agent1) or drop the empty key in a small `OpenAIModel` subclass (agent2).
+- On non-Bedrock models the guardrail runs through ApplyGuardrail on the raw text, and the `PROMPT_ATTACK` filter at
+  HIGH strength flags instruction-like system prompts such as "You are a concise assistant." as injection (HTTP 403).
+  Keep instructions in the user turn for those models; Bedrock models accept system prompts normally.
 
 ## Security posture
 

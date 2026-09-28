@@ -266,7 +266,7 @@ terraform -chdir=terraform/agentgateway apply
 | FastMCP pod `CrashLoopBackOff`, `port ... tcp://...` | Kubernetes service links inject `FASTMCP_PORT` | `enableServiceLinks: false` in the Deployment (already fixed) |
 | `gemma-3-4b-it` returns 503 | vLLM still pulling image/weights | `kubectl get pods -n inference`; wait for 1/1 (up to 15 min) |
 | `curl: (6) Could not resolve host` for the NLB | DNS not propagated yet | wait 2-3 min or `./scripts/get-gateway-url.sh` |
-| Timeout from your laptop to the NLB / EKS API | your public IP changed | update `allowed_cidrs`, apply stacks 1 and 3 |
+| Timeout from your laptop to the NLB / EKS API | your public IP changed | append your `/32` to `allowed_cidrs`; from the new IP first run `terraform -chdir=terraform/kubernetes apply -target='module.eks.aws_eks_cluster.this[0]'` (otherwise the Helm provider cannot reach the API and plans to re-create the NodePools release), then apply stacks 1 and 3 |
 | `gpt-5.5` / `gemini-2.5-flash` return `invalid_api_key` | placeholder key | set the real key in Secrets Manager (MANUAL_STEPS.md) |
 | `/agentcore/mcp` returns 401 with a token | ID token instead of ACCESS token, or expired (60 min) | `./scripts/cognito-token.sh` and use `AuthenticationResult.AccessToken` |
 | `terraform init` complains about `use_lockfile` | Terraform < 1.10 | install from `hashicorp/tap` |
