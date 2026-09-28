@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        agentgateway-santi-open/inference: ollama
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      containers:
+        - name: ollama
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:{{ .Values.port }}"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "-1"
+            - name: OLLAMA_MODELS
+              value: /models
+            - name: MODEL
+              value: {{ .Values.model | quote }}
+          # Pull the model once the server is up (runs in parallel with the main process)
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    for i in $(seq 1 60); do ollama list >/dev/null 2>&1 && break; sleep 2; done
+                    ollama pull "$MODEL" && ollama run "$MODEL" "hello" >/dev/null 2>&1 || true
+          # Ready only when the model is present
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "ollama list | grep -q \"$(echo $MODEL | cut -d: -f1)\""]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          emptyDir: {}

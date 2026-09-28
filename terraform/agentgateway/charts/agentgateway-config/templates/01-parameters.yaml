@@ -1,0 +1,28 @@
+# Proxy customization: NLB restricted to allowed CIDRs, replicas, resources, JSON logs.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: {{ .Values.gateway.name }}-params
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  logging:
+    level: {{ .Values.gateway.logLevel }}
+    format: json
+  resources:
+    {{- toYaml .Values.gateway.resources | nindent 4 }}
+  deployment:
+    spec:
+      replicas: {{ .Values.gateway.replicas }}
+  service:
+    metadata:
+      annotations:
+        # EKS Auto Mode built-in load balancer controller
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+        service.beta.kubernetes.io/aws-load-balancer-name: {{ .Values.namePrefix }}-nlb
+    spec:
+      loadBalancerClass: eks.amazonaws.com/nlb
+      loadBalancerSourceRanges:
+        {{- toYaml .Values.gateway.allowedCidrs | nindent 8 }}

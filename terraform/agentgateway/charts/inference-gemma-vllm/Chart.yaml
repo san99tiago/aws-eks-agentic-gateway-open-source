@@ -1,0 +1,6 @@
+apiVersion: v2
+name: inference-gemma-vllm
+description: Self-hosted Gemma 3 4B IT served by vLLM on a GPU node (member of an InferencePool for agentgateway inference routing)
+type: application
+version: 0.1.0
+appVersion: "v0.30.0"

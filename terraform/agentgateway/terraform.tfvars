@@ -1,0 +1,9 @@
+aws_region               = "us-east-1"
+name_prefix              = "agentgateway-santi-open"
+agentgateway_version     = "v1.5.0"
+external_secrets_version = "2.11.0"
+llmd_router_version      = "v0.9.0"
+enable_inference_routing = true
+ollama_model             = "llama3.2:3b"
+gemma_model              = "unsloth/gemma-3-4b-it"
+gateway_replicas         = 2

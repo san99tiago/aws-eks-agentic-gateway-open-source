@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: agentgateway
+  infrastructure:
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: {{ .Values.gateway.name }}-params
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ .Values.gateway.port }}
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          # Ordinary routes (MCP, AgentCore)
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+          # Enables the built-in LLM paths (/v1/chat/completions, /v1/models) served by AgentgatewayModel
+          - group: agentgateway.dev
+            kind: AgentgatewayModel

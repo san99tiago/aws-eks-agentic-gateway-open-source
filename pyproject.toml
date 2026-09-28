@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "aws-eks-agentic-gateway-open-source"
+version = "1.0.0"
+description = "agentgateway on Amazon EKS: LLM Gateway (Bedrock), MCP Gateway (EKS + AgentCore), Inference Routing (Ollama + Gemma) and Bedrock Guardrails. Sample MCP servers and test clients."
+authors = ["Santiago Garcia Arango <san99tiago@gmail.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+fastmcp = ">=2.12,<3"
+boto3 = ">=1.35"
+requests = ">=2.32"
+openai = ">=1.50"
+rich = ">=13.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+ruff = ">=0.6"
+
+[build-system]
+requires = ["poetry-core>=1.9"]
+build-backend = "poetry.core.masonry.api"

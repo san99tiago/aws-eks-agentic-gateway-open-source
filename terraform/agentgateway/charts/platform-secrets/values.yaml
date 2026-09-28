@@ -1,0 +1,8 @@
+awsRegion: us-east-1
+namePrefix: agentgateway-santi-open
+targetNamespace: agentgateway-system
+refreshInterval: 1h
+# key = Kubernetes Secret name, value = Secrets Manager secret name
+secrets:
+  openai-secret: agentgateway-santi-open/openai-api-key
+  gemini-secret: agentgateway-santi-open/gemini-api-key

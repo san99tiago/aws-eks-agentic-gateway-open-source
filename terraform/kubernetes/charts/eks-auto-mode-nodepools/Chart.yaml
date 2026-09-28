@@ -1,0 +1,6 @@
+apiVersion: v2
+name: eks-auto-mode-nodepools
+description: EKS Auto Mode NodeClass and NodePools (medium-tier instances) for agentgateway-santi-open
+type: application
+version: 0.1.0
+appVersion: "1.0"

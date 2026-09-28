@@ -1,0 +1,83 @@
+namePrefix: agentgateway-santi-open
+awsRegion: us-east-1
+
+gateway:
+  name: agentgateway-proxy
+  namespace: agentgateway-system
+  port: 80
+  # Only these CIDRs can reach the NLB (never 0.0.0.0/0)
+  allowedCidrs: []
+  replicas: 2
+  logLevel: info
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+guardrail:
+  identifier: ""
+  version: "1"
+
+# ---- LLM Gateway: Bedrock concrete models (client name -> Bedrock model/inference profile id) ----
+bedrockModels:
+  - name: claude-sonnet-4-5
+    modelId: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  - name: claude-haiku-4-5
+    modelId: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  - name: nova-pro
+    modelId: us.amazon.nova-pro-v1:0
+  - name: nova-lite
+    modelId: us.amazon.nova-lite-v1:0
+
+# ---- Placeholders for third-party providers (API keys synced from Secrets Manager) ----
+placeholders:
+  openai:
+    enabled: true
+    name: gpt-5.5
+    secretName: openai-secret
+  gemini:
+    enabled: true
+    name: gemini-2.5-flash
+    secretName: gemini-secret
+
+# ---- Virtual models (routing across concrete models) ----
+virtualModels:
+  smart:
+    enabled: true
+    premiumHeader: x-model-tier
+    premiumTarget: claude-sonnet-4-5
+    defaultTarget: nova-lite
+  resilient:
+    enabled: true
+    primary: claude-sonnet-4-5
+    fallback: nova-pro
+
+# ---- Inference routing: self-hosted models behind InferencePools (Gateway API Inference Extension) ----
+selfHosted:
+  namespace: inference
+  models:
+    - name: gemma-3-4b-it
+      inferencePool: gemma
+      upstreamModel: gemma-3-4b-it
+    - name: llama3.2
+      inferencePool: ollama
+      upstreamModel: llama3.2:3b
+
+# ---- MCP Gateway ----
+mcp:
+  eks:
+    enabled: true
+    path: /mcp
+    host: fastmcp.mcp.svc.cluster.local
+    port: 8000
+    mcpPath: /mcp
+  agentcore:
+    enabled: true
+    path: /agentcore/mcp
+    runtimeArn: ""
+    cognito:
+      issuer: ""
+      jwksUrl: ""
+      clientId: ""

@@ -1,0 +1,15 @@
+name: fastmcp
+image:
+  repository: ""
+  tag: v1
+replicas: 2
+port: 8000
+mcpPath: /mcp
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+nodeSelector:
+  agentgateway-santi-open/pool: general

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mcp-fastmcp
+description: Sample FastMCP server (Streamable HTTP) running in EKS, exposed through agentgateway MCP Gateway
+type: application
+version: 0.1.0
+appVersion: "1.0"

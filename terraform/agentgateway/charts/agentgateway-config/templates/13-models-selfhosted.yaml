@@ -1,0 +1,39 @@
+# Inference routing: self-hosted models served from InferencePools. The llm-d Router EPP
+# picks the best pod (queue depth, KV cache...) and agentgateway forwards to it, while still
+# applying LLM features (token accounting, Bedrock Guardrails prompt guard).
+{{- range .Values.selfHosted.models }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: {{ .name | replace ":" "-" | replace "." "-" }}
+  namespace: {{ $.Values.selfHosted.namespace }}
+  labels:
+    {{- include "agw.labels" $ | nindent 4 }}
+    agentgateway-santi-open/provider: self-hosted
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ $.Values.gateway.name }}
+      namespace: {{ $.Values.gateway.namespace }}
+      sectionName: http
+  match:
+    model: {{ .name }}
+  visibility: Public
+  provider: Custom
+  custom:
+    backendRef:
+      group: inference.networking.k8s.io
+      kind: InferencePool
+      name: {{ .inferencePool }}
+    providerOverride: openai
+    formats:
+      - type: Completions
+        path: /v1/chat/completions
+  policies:
+    transformations:
+      - field: model
+        expression: {{ printf "%q" .upstreamModel | quote }}
+    {{- include "agw.bedrockPromptGuard" $ | nindent 4 }}
+{{- end }}

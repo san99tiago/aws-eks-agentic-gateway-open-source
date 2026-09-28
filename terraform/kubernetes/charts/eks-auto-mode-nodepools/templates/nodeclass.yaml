@@ -1,0 +1,22 @@
+# One NodeClass per pool so disk sizing differs (GPU nodes hold big vLLM/Ollama images).
+{{- range $pool := list "general" "gpu" }}
+{{- $cfg := index $.Values $pool }}
+---
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: {{ $.Values.namePrefix }}-{{ $pool }}
+spec:
+  role: {{ $.Values.nodeRoleName }}
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ $.Values.clusterName }}
+  securityGroupSelectorTerms:
+    - id: {{ $.Values.securityGroupId }}
+  snatPolicy: Random
+  networkPolicy: DefaultAllow
+  ephemeralStorage:
+    size: {{ $cfg.disk_size }}
+    iops: 3000
+    throughput: 125
+{{- end }}

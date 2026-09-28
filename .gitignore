@@ -1,0 +1,60 @@
+# ---- Terraform (state lives in S3; never commit state or backups) ----
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+*.tfplan
+*.plan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# Keep terraform.tfvars committed on purpose (non-secret demo values). Ignore local overrides:
+*.auto.tfvars
+secrets.tfvars
+
+# ---- Helm ----
+**/charts/*/charts/
+**/charts/*/*.tgz
+**/*.tgz
+
+# ---- Python ----
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+poetry.lock
+
+# ---- Kube / local ----
+kubeconfig*
+*.kubeconfig
+.envrc
+.env
+.env.*
+*.pem
+*.key
+!terraform/**/README.md
+
+# ---- Editors / OS ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ---- Generated outputs ----
+outputs/
+tmp/
+assets/_preview.png
+
+# ---- Terraform apply logs ----
+terraform/**/apply-*.log

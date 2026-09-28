@@ -1,0 +1,53 @@
+# Virtual models: one client-facing name routed across Bedrock concrete models.
+{{- if .Values.virtualModels.smart.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: smart
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+    agentgateway-santi-open/provider: virtual
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      sectionName: http
+  virtualModel:
+    conditional:
+      targets:
+        # Header {{ .Values.virtualModels.smart.premiumHeader }}: premium -> premium model, otherwise the economical one
+        - when: 'request.headers["{{ .Values.virtualModels.smart.premiumHeader }}"] == "premium"'
+          modelRef:
+            name: {{ .Values.virtualModels.smart.premiumTarget }}
+        - modelRef:
+            name: {{ .Values.virtualModels.smart.defaultTarget }}
+{{- end }}
+{{- if .Values.virtualModels.resilient.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: resilient
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+    agentgateway-santi-open/provider: virtual
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      sectionName: http
+  virtualModel:
+    failover:
+      targets:
+        - modelRef:
+            name: {{ .Values.virtualModels.resilient.primary }}
+          priority: 0
+        - modelRef:
+            name: {{ .Values.virtualModels.resilient.fallback }}
+          priority: 1
+{{- end }}

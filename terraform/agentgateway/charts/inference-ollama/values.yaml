@@ -1,0 +1,21 @@
+name: ollama
+image:
+  repository: ollama/ollama
+  tag: "0.34.4"
+model: "llama3.2:3b"
+port: 11434
+replicas: 1
+resources:
+  requests:
+    cpu: "2"
+    memory: 6Gi
+    nvidia.com/gpu: 1
+  limits:
+    memory: 12Gi
+    nvidia.com/gpu: 1
+nodeSelector:
+  agentgateway-santi-open/pool: gpu
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule

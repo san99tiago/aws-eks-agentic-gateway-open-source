@@ -1,0 +1,44 @@
+# MCP-GW target 1: FastMCP server running in EKS (Streamable HTTP)
+{{- if .Values.mcp.eks.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: mcp-eks
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  mcp:
+    targets:
+      - name: fastmcp-eks
+        static:
+          host: {{ .Values.mcp.eks.host }}
+          port: {{ .Values.mcp.eks.port }}
+          path: {{ .Values.mcp.eks.mcpPath }}
+          protocol: StreamableHTTP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-eks
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.mcp.eks.path }}
+      backendRefs:
+        - group: agentgateway.dev
+          kind: AgentgatewayBackend
+          name: mcp-eks
+      timeouts:
+        request: 120s
+{{- end }}

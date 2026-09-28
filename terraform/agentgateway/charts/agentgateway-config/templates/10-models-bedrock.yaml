@@ -1,0 +1,37 @@
+# LLM-GW: Amazon Bedrock models. Guardrail applied NATIVELY by Bedrock (guardrailConfig on the invoke).
+# Auth: implicit AWS credential chain -> EKS Pod Identity role attached to the proxy ServiceAccount.
+{{- range .Values.bedrockModels }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" $ | nindent 4 }}
+    agentgateway-santi-open/provider: bedrock
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ $.Values.gateway.name }}
+      sectionName: http
+  match:
+    model: {{ .name }}
+  visibility: Public
+  provider: Bedrock
+  bedrock:
+    region: {{ $.Values.awsRegion }}
+    guardrail:
+      identifier: {{ $.Values.guardrail.identifier | quote }}
+      version: {{ $.Values.guardrail.version | quote }}
+  policies:
+    transformations:
+      - field: model
+        expression: {{ printf "%q" .modelId | quote }}
+    health:
+      unhealthyCondition: "response.code >= 500"
+      eviction:
+        consecutiveFailures: 2
+        duration: 60s
+{{- end }}

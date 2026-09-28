@@ -1,0 +1,18 @@
+namePrefix: agentgateway-santi-open
+clusterName: ""
+nodeRoleName: ""
+securityGroupId: ""
+availabilityZones: []
+general:
+  instance_families: ["m7g", "m8g"]
+  instance_sizes: ["large", "xlarge"]
+  architecture: arm64
+  cpu_limit: "32"
+  disk_size: 80Gi
+gpu:
+  instance_families: ["g6"]
+  instance_sizes: ["xlarge"]
+  architecture: amd64
+  gpu_limit: "2"
+  cpu_limit: "16"
+  disk_size: 150Gi

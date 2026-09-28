@@ -1,0 +1,6 @@
+apiVersion: v2
+name: inference-extension-crds
+description: Vendored Gateway API Inference Extension CRDs v1.5.0 (InferencePool) - https://github.com/kubernetes-sigs/gateway-api-inference-extension
+type: application
+version: 1.5.0
+appVersion: "v1.5.0"

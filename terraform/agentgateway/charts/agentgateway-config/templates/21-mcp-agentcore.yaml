@@ -1,0 +1,73 @@
+# MCP-GW target 2: MCP server on Amazon Bedrock AgentCore Runtime.
+# Client -> (Cognito JWT validated by agentgateway) -> token passed through -> AgentCore (customJWTAuthorizer)
+{{- if .Values.mcp.agentcore.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: mcp-agentcore
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  aws:
+    agentCore:
+      agentRuntimeArn: {{ .Values.mcp.agentcore.runtimeArn | quote }}
+  policies:
+    auth:
+      # Reuse the client's Cognito access token (already validated by the route policy below)
+      passthrough: {}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-agentcore
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.mcp.agentcore.path }}
+      backendRefs:
+        - group: agentgateway.dev
+          kind: AgentgatewayBackend
+          name: mcp-agentcore
+      timeouts:
+        request: 120s
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: mcp-agentcore-cognito-jwt
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: mcp-agentcore
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      preserveToken: true
+      providers:
+        - issuer: {{ .Values.mcp.agentcore.cognito.issuer | quote }}
+          jwks:
+            remote:
+              url: {{ .Values.mcp.agentcore.cognito.jwksUrl | quote }}
+    authorization:
+      action: Allow
+      policy:
+        matchExpressions:
+          # Only access tokens minted for our Cognito app client
+          - 'jwt.client_id == "{{ .Values.mcp.agentcore.cognito.clientId }}"'
+          - 'jwt.token_use == "access"'
+{{- end }}

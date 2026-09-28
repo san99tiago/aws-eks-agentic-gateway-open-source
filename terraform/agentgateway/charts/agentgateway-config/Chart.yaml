@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agentgateway-config
+description: agentgateway data-plane configuration for agentgateway-santi-open - Gateway, LLM models (Bedrock, placeholders, self-hosted InferencePools), virtual models, MCP backends (EKS + AgentCore) and security policies
+type: application
+version: 0.1.0
+appVersion: "1.5.0"

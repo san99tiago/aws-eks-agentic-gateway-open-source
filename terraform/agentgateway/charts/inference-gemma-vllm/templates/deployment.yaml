@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        agentgateway-santi-open/inference: gemma
+        inference.networking.k8s.io/engine-type: vllm
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model
+            - {{ .Values.model | quote }}
+            - --served-model-name
+            - {{ .Values.servedModelName | quote }}
+            - --max-model-len
+            - {{ .Values.maxModelLen | quote }}
+            - --gpu-memory-utilization
+            - {{ .Values.gpuMemoryUtilization | quote }}
+            - --dtype
+            - bfloat16
+            - --port
+            - {{ .Values.port | quote }}
+            - --host
+            - "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - name: HF_HOME
+              value: /root/.cache/huggingface
+            - name: VLLM_LOGGING_LEVEL
+              value: INFO
+            {{- if .Values.hfTokenSecret }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.hfTokenSecret }}
+                  key: HF_TOKEN
+            {{- end }}
+          # Model download (~8 GB) + CUDA graph capture can take several minutes
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            failureThreshold: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /root/.cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: hf-cache
+          emptyDir: {}
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi

@@ -1,0 +1,84 @@
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: {{ .Values.namePrefix }}-general
+spec:
+  template:
+    metadata:
+      labels:
+        agentgateway-santi-open/pool: general
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: {{ .Values.namePrefix }}-general
+      expireAfter: 336h
+      terminationGracePeriod: 24h
+      requirements:
+        - key: eks.amazonaws.com/instance-family
+          operator: In
+          values: {{ toJson .Values.general.instance_families }}
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values: {{ toJson .Values.general.instance_sizes }}
+        - key: kubernetes.io/arch
+          operator: In
+          values: [{{ .Values.general.architecture | quote }}]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: {{ toJson .Values.availabilityZones }}
+  limits:
+    cpu: {{ .Values.general.cpu_limit | quote }}
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: {{ .Values.namePrefix }}-gpu
+spec:
+  template:
+    metadata:
+      labels:
+        agentgateway-santi-open/pool: gpu
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: {{ .Values.namePrefix }}-gpu
+      expireAfter: 336h
+      terminationGracePeriod: 24h
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: eks.amazonaws.com/instance-family
+          operator: In
+          values: {{ toJson .Values.gpu.instance_families }}
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values: {{ toJson .Values.gpu.instance_sizes }}
+        - key: eks.amazonaws.com/instance-gpu-manufacturer
+          operator: In
+          values: ["nvidia"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: [{{ .Values.gpu.architecture | quote }}]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: {{ toJson .Values.availabilityZones }}
+  limits:
+    cpu: {{ .Values.gpu.cpu_limit | quote }}
+    nvidia.com/gpu: {{ .Values.gpu.gpu_limit | quote }}
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 10m

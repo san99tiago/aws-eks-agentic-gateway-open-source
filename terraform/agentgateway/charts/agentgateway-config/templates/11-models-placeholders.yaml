@@ -1,0 +1,49 @@
+# LLM-GW placeholders for third-party providers. API keys come from AWS Secrets Manager
+# through External Secrets (REPLACE_ME until set manually - see MANUAL_STEPS.md).
+# Bedrock Guardrails are still enforced through the ApplyGuardrail prompt guard.
+{{- if .Values.placeholders.openai.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: {{ .Values.placeholders.openai.name }}
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+    agentgateway-santi-open/provider: openai-placeholder
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      sectionName: http
+  provider: OpenAI
+  policies:
+    auth:
+      secretRef:
+        name: {{ .Values.placeholders.openai.secretName }}
+    {{- include "agw.bedrockPromptGuard" . | nindent 4 }}
+{{- end }}
+{{- if .Values.placeholders.gemini.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: {{ .Values.placeholders.gemini.name }}
+  namespace: {{ .Values.gateway.namespace }}
+  labels:
+    {{- include "agw.labels" . | nindent 4 }}
+    agentgateway-santi-open/provider: gemini-placeholder
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      sectionName: http
+  provider: Gemini
+  policies:
+    auth:
+      secretRef:
+        name: {{ .Values.placeholders.gemini.secretName }}
+    {{- include "agw.bedrockPromptGuard" . | nindent 4 }}
+{{- end }}

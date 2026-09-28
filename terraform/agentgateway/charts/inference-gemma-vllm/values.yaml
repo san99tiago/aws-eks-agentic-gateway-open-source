@@ -1,0 +1,26 @@
+name: gemma-vllm
+image:
+  repository: vllm/vllm-openai
+  tag: "v0.30.0"
+# Ungated mirror of google/gemma-3-4b-it (same weights). Switch to the official repo + HF token if desired.
+model: unsloth/gemma-3-4b-it
+servedModelName: gemma-3-4b-it
+maxModelLen: 8192
+gpuMemoryUtilization: "0.90"
+port: 8000
+replicas: 1
+hfTokenSecret: ""   # name of a k8s Secret with key HF_TOKEN (optional, for gated repos)
+resources:
+  requests:
+    cpu: "3"
+    memory: 10Gi
+    nvidia.com/gpu: 1
+  limits:
+    memory: 14Gi
+    nvidia.com/gpu: 1
+nodeSelector:
+  agentgateway-santi-open/pool: gpu
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
