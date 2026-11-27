@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>agentgateway Flow Explorer</title>
+<meta name="description" content="Explicacion interactiva de los flujos de agentgateway en Amazon EKS Auto Mode: LLM Gateway, MCP Gateway, Inference Routing y Bedrock Guardrails.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ------------------------------------------------------------------ tokens */
+:root {
+  color-scheme: light;
+  --bg: #f2f5f8;
+  --panel: #ffffff;
+  --panel-2: #e9eef3;
+  --line: #cfd8e1;
+  --ink: #14202b;
+  --ink-2: #4a5b6b;
+  --ink-3: #7d8c9a;
+  --accent: #0f6e8c;
+  --accent-soft: #d6ecf3;
+  --accent-ink: #0a4f66;
+  --amber: #b8730a;
+  --amber-soft: #fbeed3;
+  --red: #b4362f;
+  --red-soft: #f8dcd9;
+  --green: #2f7d4f;
+  --green-soft: #d9efe0;
+  --violet: #5b4fa3;
+  --violet-soft: #e4e0f5;
+  --code-bg: #0f171f;
+  --code-ink: #dbe6f0;
+  --shadow: 0 1px 2px rgba(20,32,43,.06), 0 6px 20px rgba(20,32,43,.06);
+  --edge: #9fb0c0;
+  --edge-active: var(--accent);
+  --node-fill: #ffffff;
+  --node-fill-active: #dcf0f7;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e141b; --panel: #161f28; --panel-2: #1d2833; --line: #2c3a48;
+    --ink: #e6edf3; --ink-2: #aebbc8; --ink-3: #7f8e9c;
+    --accent: #4fb3d1; --accent-soft: #123644; --accent-ink: #9fdcee;
+    --amber: #e0a23c; --amber-soft: #3a2c10; --red: #ef7d74; --red-soft: #45201d;
+    --green: #6cc48f; --green-soft: #16331f; --violet: #a79cf0; --violet-soft: #292447;
+    --code-bg: #0a1017; --code-ink: #d6e2ec;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --edge: #3f5265; --node-fill: #1a2530; --node-fill-active: #143a49;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e141b; --panel: #161f28; --panel-2: #1d2833; --line: #2c3a48;
+  --ink: #e6edf3; --ink-2: #aebbc8; --ink-3: #7f8e9c;
+  --accent: #4fb3d1; --accent-soft: #123644; --accent-ink: #9fdcee;
+  --amber: #e0a23c; --amber-soft: #3a2c10; --red: #ef7d74; --red-soft: #45201d;
+  --green: #6cc48f; --green-soft: #16331f; --violet: #a79cf0; --violet-soft: #292447;
+  --code-bg: #0a1017; --code-ink: #d6e2ec;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --edge: #3f5265; --node-fill: #1a2530; --node-fill-active: #143a49;
+}
+
+/* ------------------------------------------------------------------ base */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-inline: clamp(16px, 3vw, 40px); padding-block: 0 48px;
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); font-weight: 600; }
+h2 { font-size: 1.15rem; font-weight: 600; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; }
+code, pre { font-family: var(--font-mono); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+.muted { color: var(--ink-2); }
+
+/* ------------------------------------------------------------------ header */
+header.top {
+  min-width: 0;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding-block: 14px 10px; border-bottom: 1px solid var(--line); margin-bottom: 18px;
+}
+header .brand { display: flex; flex-direction: column; gap: 2px; }
+header .brand .sub { color: var(--ink-2); font-size: .9rem; }
+header .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+  padding: 7px 12px; font-size: .88rem; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ------------------------------------------------------------------ scenario chips */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
+  padding: 7px 13px; font-size: .86rem; display: inline-flex; align-items: center; gap: 8px;
+}
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.chip[data-kind="llm"] .dot { background: var(--accent); }
+.chip[data-kind="mcp"] .dot { background: var(--violet); }
+.chip[data-kind="guard"] .dot { background: var(--amber); }
+.chip[data-kind="agent"] .dot { background: var(--green); }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+
+/* ------------------------------------------------------------------ layout */
+.stage { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 980px) { .stage { grid-template-columns: minmax(0, 1fr); } .diagram-wrap { position: static !important; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.diagram-wrap { position: sticky; top: 92px; padding: 14px; }
+.diagram-wrap .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+.diagram-scroll { overflow-x: auto; }
+svg.diagram { width: 100%; min-width: 560px; height: auto; display: block; }
+
+/* SVG styling */
+.node rect { fill: var(--node-fill); stroke: var(--line); stroke-width: 1.2; rx: 8; transition: fill .3s, stroke .3s; }
+.node text { fill: var(--ink); font-family: var(--font-body); font-size: 12.5px; }
+.node text.t { font-weight: 600; font-size: 13px; }
+.node text.s { fill: var(--ink-2); font-size: 11px; }
+.node.dim rect { stroke: var(--line); }
+.node.dim text { fill: var(--ink-3); }
+.node.active rect { fill: var(--node-fill-active); stroke: var(--accent); stroke-width: 2.2; }
+.node.active text { fill: var(--ink); }
+.node.active text.s { fill: var(--ink-2); }
+.node.blocked rect { fill: var(--red-soft); stroke: var(--red); stroke-width: 2.2; }
+.node.visited rect { stroke: var(--accent); stroke-width: 1.4; }
+.badge rect { fill: var(--amber-soft); stroke: var(--amber); stroke-width: 1; rx: 10; }
+.badge text { fill: var(--amber); font-size: 10px; font-weight: 600; font-family: var(--font-body); }
+.badge.id rect { fill: var(--green-soft); stroke: var(--green); }
+.badge.id text { fill: var(--green); }
+.badge.jwt rect { fill: var(--violet-soft); stroke: var(--violet); }
+.badge.jwt text { fill: var(--violet); }
+.zone rect { fill: none; stroke: var(--line); stroke-dasharray: 4 4; rx: 12; }
+.zone text { fill: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-body); font-weight: 600; }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.6; opacity: .55; transition: stroke .3s, opacity .3s; marker-end: url(#arrow); }
+.edge.active { stroke: var(--edge-active); opacity: 1; stroke-width: 2.6; stroke-dasharray: 7 5; animation: flow 1s linear infinite; marker-end: url(#arrow-active); }
+.edge.blocked { stroke: var(--red); opacity: 1; stroke-width: 2.4; marker-end: url(#arrow-blocked); }
+.edge.dotted { stroke-dasharray: 3 4; }
+#e-agent-loop:not(.active) { opacity: 0; }
+@keyframes flow { to { stroke-dashoffset: -24; } }
+@media (prefers-reduced-motion: reduce) { .edge.active { animation: none; } }
+
+/* ------------------------------------------------------------------ player */
+.player { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+.player .title-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.player .title-row .kind { font-size: .78rem; padding: 3px 9px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.kind.llm { background: var(--accent-soft); color: var(--accent-ink); }
+.kind.mcp { background: var(--violet-soft); color: var(--violet); }
+.kind.guard { background: var(--amber-soft); color: var(--amber); }
+.kind.agent { background: var(--green-soft); color: var(--green); }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.progress { display: flex; gap: 4px; flex: 1; min-width: 120px; }
+.progress span { flex: 1; height: 5px; border-radius: 3px; background: var(--panel-2); }
+.progress span.done { background: var(--accent); }
+.progress span.cur { background: var(--accent); opacity: .55; }
+.step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); }
+.step .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; background: var(--accent); color: #fff; font-variant-numeric: tabular-nums; }
+.step .num.blocked { background: var(--red); }
+.step h3 { margin-bottom: 4px; }
+.step .why { color: var(--ink-2); font-size: .93rem; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.tag { font-size: .74rem; border-radius: 6px; padding: 2px 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); }
+.tag.id { border-color: var(--green); color: var(--green); }
+.tag.guard { border-color: var(--amber); color: var(--amber); }
+.tag.jwt { border-color: var(--violet); color: var(--violet); }
+.tag.block { border-color: var(--red); color: var(--red); }
+pre.code {
+  margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 10px; padding: 30px 14px 12px;
+  font-size: .8rem; line-height: 1.5; overflow-x: auto; white-space: pre; position: relative;
+}
+pre.code .lbl { position: absolute; top: 8px; right: 10px; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: #8fa3b5; }
+.steps-list { display: flex; flex-direction: column; gap: 6px; }
+.steps-list button {
+  text-align: left; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 6px 10px;
+  display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: baseline; color: var(--ink-2); font-size: .88rem;
+}
+.steps-list button:hover { background: var(--panel-2); }
+.steps-list button.cur { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+.steps-list button.done { color: var(--ink); }
+.steps-list .n { font-variant-numeric: tabular-nums; font-family: var(--font-display); font-weight: 600; }
+details.more { border-top: 1px solid var(--line); padding-top: 10px; }
+details.more summary { cursor: pointer; font-weight: 600; font-size: .9rem; color: var(--accent-ink); }
+details.more ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-2); font-size: .9rem; }
+
+/* ------------------------------------------------------------------ below the fold */
+section.block { margin-top: 28px; }
+section.block > h2 { margin-bottom: 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { padding: 14px 16px; }
+.card h3 { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.card p { color: var(--ink-2); font-size: .92rem; }
+.card .path { font-family: var(--font-mono); font-size: .8rem; color: var(--accent-ink); background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+td code { font-size: .82rem; background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
+.pill { display: inline-block; font-size: .74rem; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.pill.ok { background: var(--green-soft); color: var(--green); }
+.pill.warn { background: var(--amber-soft); color: var(--amber); }
+.pill.bad { background: var(--red-soft); color: var(--red); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 4px; border-radius: 2px; background: var(--edge); display: inline-block; }
+.legend i.a { background: var(--accent); }
+.legend i.b { background: var(--red); }
+footer { margin-top: 36px; color: var(--ink-3); font-size: .82rem; border-top: 1px solid var(--line); padding-top: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+kbd { font-family: var(--font-mono); font-size: .75rem; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--panel); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>agentgateway Flow Explorer</h1>
+    <span class="sub">agentgateway v1.5.0 en Amazon EKS Auto Mode 1.36 · un solo NLB, cuatro capacidades. Elige un escenario y reproduce el request paso a paso.</span>
+  </div>
+  <div class="actions">
+    <span class="muted" style="font-size:.82rem"><kbd>←</kbd> <kbd>→</kbd> pasos · <kbd>espacio</kbd> reproducir</span>
+    <button class="btn" id="themeBtn" type="button" aria-label="Cambiar tema">Tema</button>
+  </div>
+</header>
+
+<nav class="chips" id="chips" aria-label="Escenarios"></nav>
+
+<div class="stage">
+  <!-- ------------------------------------------------------------ DIAGRAM -->
+  <div class="panel diagram-wrap">
+    <div class="head">
+      <div>
+        <div class="eyebrow">Arquitectura</div>
+        <h2 id="diagTitle">Ruta del request</h2>
+      </div>
+      <div class="legend">
+        <span><i></i> inactivo</span><span><i class="a"></i> en curso</span><span><i class="b"></i> bloqueado</span>
+      </div>
+    </div>
+    <div class="diagram-scroll">
+    <svg class="diagram" viewBox="0 0 1000 640" role="img" aria-label="Diagrama de arquitectura de agentgateway en EKS">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge)"/></marker>
+        <marker id="arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+        <marker id="arrow-blocked" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--red)"/></marker>
+      </defs>
+
+      <!-- zones -->
+      <g class="zone"><rect x="212" y="14" width="418" height="612"/><text x="224" y="32">VPC · EKS Auto Mode · agentgateway-santi-open-eks</text></g>
+      <g class="zone"><rect x="650" y="14" width="336" height="330"/><text x="662" y="32">LLM upstreams</text></g>
+      <g class="zone"><rect x="650" y="358" width="336" height="268"/><text x="662" y="376">MCP targets</text></g>
+
+      <!-- edges (drawn before nodes) -->
+      <path id="e-client-nlb" class="edge" d="M150 300 H232"/>
+      <path id="e-nlb-proxy" class="edge" d="M362 300 H400"/>
+      <path id="e-proxy-bedrock" class="edge" d="M560 270 C 620 270, 620 82, 664 82"/>
+      <path id="e-proxy-guard" class="edge" d="M560 285 C 615 285, 615 165, 664 165"/>
+      <path id="e-guard-ext" class="edge" d="M818 190 C 818 210, 818 220, 818 232"/>
+      <path id="e-guard-gemma" class="edge" d="M745 190 C 745 230, 720 250, 720 282"/>
+      <path id="e-guard-ollama" class="edge" d="M890 190 C 890 230, 905 250, 905 282"/>
+      <path id="e-proxy-fastmcp" class="edge" d="M560 315 C 615 315, 615 430, 664 430"/>
+      <path id="e-proxy-agentcore" class="edge" d="M560 330 C 620 330, 620 552, 664 552"/>
+      <path id="e-client-cognito" class="edge dotted" d="M115 335 C 115 520, 300 520, 400 520"/>
+      <path id="e-cognito-proxy" class="edge dotted" d="M480 485 V 372"/>
+      <path id="e-cognito-agentcore" class="edge dotted" d="M560 540 C 610 540, 600 580, 664 580"/>
+      <path id="e-agent-loop" class="edge dotted" d="M92 262 C 60 200, 130 200, 100 262"/>
+
+      <!-- nodes -->
+      <g class="node" id="n-client" data-title="Cliente"><rect x="30" y="262" width="120" height="76"/><text class="t" x="42" y="286">Cliente</text><text class="s" x="42" y="304">curl · OpenAI SDK</text><text class="s" x="42" y="320">Strands · MCP client</text></g>
+      <g class="node" id="n-nlb"><rect x="232" y="262" width="130" height="76"/><text class="t" x="244" y="286">NLB :80</text><text class="s" x="244" y="304">internet-facing</text><text class="s" x="244" y="320">SG solo tu /32</text></g>
+      <g class="node" id="n-proxy"><rect x="400" y="236" width="160" height="136"/><text class="t" x="412" y="260">agentgateway proxy</text><text class="s" x="412" y="278">Gateway API · 2 replicas</text><text class="s" x="412" y="294">match model / path</text><text class="s" x="412" y="310">policies · translate</text>
+        <g class="badge id"><rect x="412" y="326" width="136" height="20"/><text x="420" y="340">EKS Pod Identity · SigV4</text></g>
+        <text class="s" x="412" y="364">ns agentgateway-system</text></g>
+      <g class="node" id="n-cognito"><rect x="400" y="486" width="160" height="70"/><text class="t" x="412" y="510">Amazon Cognito</text><text class="s" x="412" y="528">user pool · sin sign-up</text><text class="s" x="412" y="544">access token 60 min</text></g>
+
+      <g class="node" id="n-bedrock"><rect x="664" y="48" width="308" height="68"/><text class="t" x="676" y="70">Amazon Bedrock</text><text class="s" x="676" y="88">Claude Sonnet/Haiku 4.5 · GPT-6 Luna/Sol</text>
+        <g class="badge"><rect x="676" y="94" width="132" height="18"/><text x="683" y="107">Guardrail nativo v2</text></g>
+        <text class="s" x="820" y="107">inference profiles</text></g>
+      <g class="node" id="n-guard"><rect x="664" y="140" width="308" height="50"/><text class="t" x="676" y="160">Bedrock Guardrails · ApplyGuardrail</text><text class="s" x="676" y="178">promptGuard request + response · 403 si bloquea</text></g>
+      <g class="node" id="n-ext"><rect x="664" y="232" width="308" height="44"/><text class="t" x="676" y="250">OpenAI · Gemini (placeholders)</text><text class="s" x="676" y="266">API key desde Secrets Manager via External Secrets</text></g>
+      <g class="node" id="n-gemma"><rect x="664" y="282" width="150" height="56"/><text class="t" x="674" y="300">InferencePool gemma</text><text class="s" x="674" y="316">EPP llm-d → vLLM</text><text class="s" x="674" y="330">gemma-3-4b-it · g6.xlarge</text></g>
+      <g class="node" id="n-ollama"><rect x="822" y="282" width="150" height="56"/><text class="t" x="832" y="300">InferencePool ollama</text><text class="s" x="832" y="316">EPP llm-d → Ollama</text><text class="s" x="832" y="330">llama3.2:3b · g6.xlarge</text></g>
+
+      <g class="node" id="n-fastmcp"><rect x="664" y="398" width="308" height="64"/><text class="t" x="676" y="420">FastMCP en EKS</text><text class="s" x="676" y="438">ns mcp · Graviton arm64 · Streamable HTTP</text><text class="s" x="676" y="454">eks_hello · eks_add · eks_now · eks_runtime_info</text></g>
+      <g class="node" id="n-agentcore"><rect x="664" y="520" width="308" height="82"/><text class="t" x="676" y="542">AgentCore Runtime (MCP)</text><text class="s" x="676" y="560">contenedor arm64 en ECR · protocolo MCP</text>
+        <g class="badge jwt"><rect x="676" y="568" width="150" height="18"/><text x="683" y="581">customJWTAuthorizer</text></g>
+        <text class="s" x="676" y="598">agentcore_multiply · weather_demo · runtime_info</text></g>
+    </svg>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------ PLAYER -->
+  <div class="panel player" id="player">
+    <div class="title-row">
+      <div>
+        <div class="eyebrow" id="scnEyebrow">Escenario</div>
+        <h2 id="scnTitle"></h2>
+        <p class="muted" id="scnIntro"></p>
+      </div>
+      <span class="kind llm" id="scnKind"></span>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prevBtn" type="button">← Anterior</button>
+      <button class="btn primary" id="playBtn" type="button">▶ Reproducir</button>
+      <button class="btn" id="nextBtn" type="button">Siguiente →</button>
+      <div class="progress" id="progress"></div>
+    </div>
+    <div class="step" id="stepBox">
+      <div class="num" id="stepNum">1</div>
+      <div>
+        <h3 id="stepTitle"></h3>
+        <p class="why" id="stepWhy"></p>
+        <div class="tags" id="stepTags"></div>
+      </div>
+    </div>
+    <pre class="code" id="stepCode" hidden></pre>
+    <div class="steps-list" id="stepsList"></div>
+    <details class="more" id="scnMore"><summary>Detalles y gotchas de este flujo</summary><ul id="scnNotes"></ul></details>
+  </div>
+</div>
+
+<!-- ------------------------------------------------------------ TYPES OF INTERACTION -->
+<section class="block">
+  <h2>Tipos de interaccion, de un vistazo</h2>
+  <div class="cards">
+    <div class="panel card"><h3><span class="kind llm">LLM-GW</span></h3><p><span class="path">POST /v1/chat/completions</span> y <span class="path">GET /v1/models</span>. Un endpoint OpenAI-compatible; el campo <code>model</code> decide el upstream. Bedrock, placeholders, modelos virtuales y self-hosted se invocan igual.</p></div>
+    <div class="panel card"><h3><span class="kind mcp">MCP-GW</span></h3><p><span class="path">/mcp</span> federa un FastMCP dentro de EKS. <span class="path">/agentcore/mcp</span> proxea un MCP server en AgentCore Runtime y exige un access token de Cognito, validado en el gateway y otra vez en AgentCore.</p></div>
+    <div class="panel card"><h3><span class="kind llm">Inference routing</span></h3><p>Los modelos <code>gemma-3-4b-it</code> y <code>llama3.2</code> son <code>AgentgatewayModel</code> con <code>provider: Custom</code> hacia un <code>InferencePool</code>. El Endpoint Picker de llm-d escoge el pod (cola, KV cache) en la GPU g6.xlarge.</p></div>
+    <div class="panel card"><h3><span class="kind guard">Guardrails</span></h3><p>Un solo guardrail de Bedrock, dos mecanismos. Nativo en los modelos Bedrock (respuesta 200 con el mensaje del guardrail). Via ApplyGuardrail antes y despues del modelo en todo lo demas (HTTP 403).</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Catalogo de modelos y como se resuelven</h2>
+  <div class="panel table-wrap">
+    <table>
+      <thead><tr><th>Nombre para el cliente</th><th>Tipo</th><th>Destino real</th><th>Auth del gateway</th><th>Guardrail</th></tr></thead>
+      <tbody>
+        <tr><td><code>claude-haiku-4-5</code> · <code>claude-sonnet-4-5</code></td><td>Bedrock</td><td>inference profiles <code>global.anthropic…</code> / <code>us.anthropic…</code></td><td><span class="pill ok">Pod Identity</span></td><td>nativo</td></tr>
+        <tr><td><code>gpt-6-luna</code> · <code>gpt-6-sol</code></td><td>Bedrock (OpenAI)</td><td>inference profiles <code>us.openai.gpt-6-*</code> (el gateway quita <code>temperature</code>/<code>top_p</code>)</td><td><span class="pill ok">Pod Identity</span></td><td>nativo</td></tr>
+        <tr><td><code>smart</code></td><td>virtual condicional</td><td>header <code>x-model-tier: premium</code> → Sonnet, si no → GPT-6 Luna</td><td>heredado</td><td>heredado</td></tr>
+        <tr><td><code>resilient</code></td><td>virtual failover</td><td>Sonnet (p0) → GPT-6 Sol (p1) tras 2 fallos 5xx</td><td>heredado</td><td>heredado</td></tr>
+        <tr><td><code>gpt-5.5</code> · <code>gemini-2.5-flash</code></td><td>placeholder</td><td>OpenAI / Gemini con key de Secrets Manager</td><td>Secret k8s <code>Authorization</code></td><td>ApplyGuardrail</td></tr>
+        <tr><td><code>gemma-3-4b-it</code> · <code>llama3.2</code></td><td>InferencePool</td><td>vLLM / Ollama en g6.xlarge, EPP llm-d</td><td>interno al cluster</td><td>ApplyGuardrail</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Guardrail v2, que bloquea y que deja pasar</h2>
+  <div class="panel table-wrap">
+    <table>
+      <thead><tr><th>Politica</th><th>v1 (28 sep, manana)</th><th>v2 (actual)</th><th>Efecto en la demo</th></tr></thead>
+      <tbody>
+        <tr><td>HATE · INSULTS · SEXUAL · VIOLENCE</td><td><span class="pill bad">HIGH</span></td><td><span class="pill warn">MEDIUM</span></td><td>HIGH bloqueaba coincidencias de confianza LOW. En Converse se evalua toda la conversacion, asi que "consultar saldo" caia si el historial mencionaba "robo/fraude".</td></tr>
+        <tr><td>MISCONDUCT</td><td><span class="pill bad">HIGH</span></td><td><span class="pill ok">LOW</span></td><td>La charla bancaria menciona robo, fraude y bloqueo de tarjetas de forma legitima.</td></tr>
+        <tr><td>PROMPT_ATTACK (solo input)</td><td><span class="pill bad">HIGH</span></td><td><span class="pill warn">MEDIUM</span></td><td>"Ignore all previous instructions…" sigue bloqueado. Un system prompt tipo "You are a concise assistant." tambien: el clasificador lo puntua HIGH.</td></tr>
+        <tr><td>PII tarjeta de credito</td><td><span class="pill bad">BLOCK</span></td><td><span class="pill warn">ANONYMIZE</span></td><td>"terminada en 4321" ya no bloquea, se enmascara. Por eso <code>bloquear_tarjeta</code> usa alias.</td></tr>
+        <tr><td>PII email · SSN · llaves AWS</td><td><span class="pill bad">BLOCK</span></td><td><span class="pill bad">BLOCK</span></td><td>Sin cambio. Son las pruebas de la demo.</td></tr>
+        <tr><td>Tema denegado InvestmentAdvice · profanidad · palabra custom</td><td><span class="pill bad">BLOCK</span></td><td><span class="pill bad">BLOCK</span></td><td>Sin cambio.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <span>agentgateway-santi-open · Terraform + Helm · us-east-1 · Copyright 2026 Santiago Garcia Arango · Apache 2.0</span>
+  <span>Abre este archivo con doble clic, no necesita servidor.</span>
+</footer>
+
+<script>
+/* ======================================================================
+   Scenario data. Each step lights nodes/edges in the SVG and shows a snippet.
+   ====================================================================== */
+const GW = "http://$GW";
+const SCENARIOS = [
+{
+  id: "bedrock", kind: "llm", chip: "LLM · Bedrock Haiku",
+  title: "Chat completion a Claude Haiku 4.5 en Bedrock",
+  intro: "El cliente habla OpenAI. El gateway traduce a Bedrock Converse, firma con Pod Identity y aplica el guardrail nativo.",
+  notes: [
+    "El alias claude-haiku-4-5 es un AgentgatewayModel; policies.transformations reescribe el campo model al inference profile global.anthropic.claude-haiku-4-5-20251001-v1:0.",
+    "No hay llaves AWS en el cluster: el ServiceAccount agentgateway-proxy tiene un rol IAM asociado con EKS Pod Identity.",
+    "Streaming SSE funciona igual, agrega \"stream\": true.",
+    "OpenAI GPT-6 Luna/Sol tambien viven en Bedrock pero rechazan temperature y top_p: sus AgentgatewayModel agregan transformations que ponen esos campos en null (dropParams) antes de traducir a Converse. Ademas fijan reasoning.effort=none (finalTransformations), porque agentgateway v1.5.0 no sabe leer el razonamiento cifrado (redactedContent) que GPT-6 devuelve cuando razona.",
+    "El guardrail nativo devuelve HTTP 200 y el mensaje bloqueado como contenido del asistente, no un 403."
+  ],
+  steps: [
+    { t: "El cliente envia un request OpenAI al NLB", w: "Cualquier SDK OpenAI sirve: base_url = http://<NLB>/v1 y api_key con cualquier texto.", nodes: ["n-client","n-nlb"], edges: ["e-client-nlb"], tags: ["HTTP :80","solo desde tu /32"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' -d '{
+  "model": "claude-haiku-4-5",
+  "messages": [{"role": "user", "content": "Hola parcero, que es EKS Auto Mode?"}]
+}'`, lbl: "request" },
+    { t: "El NLB entrega al proxy agentgateway", w: "El security group del NLB solo permite tcp/80 desde las IPs de allowed_cidrs. Target type IP hacia los pods del proxy.", nodes: ["n-nlb","n-proxy"], edges: ["e-nlb-proxy"], tags: ["loadBalancerSourceRanges","eks.amazonaws.com/nlb"] },
+    { t: "El proxy hace match por nombre de modelo", w: "Lee el campo model del body y encuentra el AgentgatewayModel claude-haiku-4-5 con provider Bedrock. Reescribe el modelo al inference profile.", nodes: ["n-proxy"], edges: [], tags: ["AgentgatewayModel","transformations"],
+      code: `apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata: { name: claude-haiku-4-5 }
+spec:
+  match: { model: claude-haiku-4-5 }
+  provider: Bedrock
+  bedrock:
+    region: us-east-1
+    guardrail: { identifier: t04hom3kpz2p, version: "2" }
+  policies:
+    transformations:
+      - field: model
+        expression: '"global.anthropic.claude-haiku-4-5-20251001-v1:0"'`, lbl: "k8s" },
+    { t: "Firma SigV4 con Pod Identity y llama Bedrock", w: "El SDK de Rust resuelve credenciales del agente Pod Identity. Bedrock recibe Converse con guardrailConfig, asi el guardrail corre dentro de Bedrock sin viaje extra.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], tags: ["Pod Identity","bedrock:InvokeModel","guardrailConfig"] },
+    { t: "Bedrock responde y el gateway devuelve formato OpenAI", w: "El cliente recibe choices, usage y el id del modelo real. Los logs JSON del proxy incluyen campos llm.* para observabilidad.", nodes: ["n-bedrock","n-proxy","n-client"], edges: ["e-proxy-bedrock","e-nlb-proxy","e-client-nlb"], tags: ["200 OK","usage tokens"],
+      code: `{
+  "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "choices": [{"message": {"role": "assistant", "content": "EKS Auto Mode es ..."}}],
+  "usage": {"prompt_tokens": 15, "completion_tokens": 30, "total_tokens": 45}
+}`, lbl: "response" }
+  ]
+},
+{
+  id: "smart", kind: "llm", chip: "LLM · virtual smart",
+  title: "Modelo virtual smart: enrutamiento por header",
+  intro: "Un nombre estable para el cliente, dos modelos reales detras. Un header decide el tier.",
+  notes: [
+    "virtualModel.conditional evalua expresiones CEL sobre el request; la primera que cumple gana, la ultima sin when es el default.",
+    "El modelo virtual hereda auth y guardrail del modelo concreto al que enruta.",
+    "Cambiar los destinos es una linea en terraform/agentgateway/terraform.tfvars."
+  ],
+  steps: [
+    { t: "Request con model smart y header x-model-tier", w: "El cliente no sabe ni le importa que hay dos modelos. Solo elige el tier.", nodes: ["n-client","n-nlb"], edges: ["e-client-nlb"], tags: ["header x-model-tier"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' \\
+  -H 'x-model-tier: premium' \\
+  -d '{"model":"smart","messages":[{"role":"user","content":"Say only your model family."}]}'`, lbl: "request" },
+    { t: "El proxy evalua la condicion CEL", w: "request.headers[\"x-model-tier\"] == \"premium\" → claude-sonnet-4-5. Sin header → gpt-6-luna, el economico.", nodes: ["n-nlb","n-proxy"], edges: ["e-nlb-proxy"], tags: ["virtualModel.conditional","CEL"],
+      code: `spec:
+  virtualModel:
+    conditional:
+      targets:
+        - when: 'request.headers["x-model-tier"] == "premium"'
+          modelRef: { name: claude-sonnet-4-5 }
+        - modelRef: { name: gpt-6-luna }`, lbl: "k8s" },
+    { t: "Enruta al modelo concreto en Bedrock", w: "Desde aqui es identico al escenario Bedrock: Pod Identity, guardrail nativo, traduccion a Converse.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], tags: ["Pod Identity","guardrail nativo"] },
+    { t: "La respuesta revela el modelo elegido", w: "Con header premium el campo model es el perfil de Sonnet; sin header es us.openai.gpt-6-luna. Asi se demuestra en vivo.", nodes: ["n-bedrock","n-proxy","n-client"], edges: ["e-proxy-bedrock","e-nlb-proxy","e-client-nlb"], tags: ["200 OK"],
+      code: `premium  -> "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+default  -> "model": "us.openai.gpt-6-luna"`, lbl: "response" }
+  ]
+},
+{
+  id: "resilient", kind: "llm", chip: "LLM · failover resilient",
+  title: "Modelo virtual resilient: failover por prioridad",
+  intro: "Si el modelo principal falla, el gateway cambia al secundario sin que el cliente haga nada.",
+  notes: [
+    "policies.health define unhealthyCondition response.code >= 500 y eviction tras 2 fallos consecutivos durante 60s.",
+    "En condiciones normales siempre responde la prioridad 0 (Claude Sonnet 4.5)."
+  ],
+  steps: [
+    { t: "Request con model resilient", w: "El cliente pide el alias resiliente.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], tags: ["virtualModel.failover"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' \\
+  -d '{"model":"resilient","messages":[{"role":"user","content":"Reply with OK."}]}'`, lbl: "request" },
+    { t: "Prioridad 0: Claude Sonnet 4.5", w: "El proxy intenta primero el target de prioridad 0.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], tags: ["priority 0"],
+      code: `spec:
+  virtualModel:
+    failover:
+      targets:
+        - modelRef: { name: claude-sonnet-4-5 }
+          priority: 0
+        - modelRef: { name: gpt-6-sol }
+          priority: 1`, lbl: "k8s" },
+    { t: "Si hay 2 respuestas 5xx seguidas, expulsa el target 60 s", w: "La politica de salud marca el modelo como no saludable y el trafico pasa a GPT-6 Sol (prioridad 1). Cuando expira la eviccion vuelve a intentar Sonnet.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], tags: ["health.eviction","consecutiveFailures: 2"] },
+    { t: "El cliente recibe respuesta del target sano", w: "El campo model de la respuesta dice cual atendio. En la validacion del 26 de noviembre respondio la prioridad 0 (Claude Sonnet 4.5).", nodes: ["n-bedrock","n-proxy","n-client"], edges: ["e-proxy-bedrock","e-nlb-proxy","e-client-nlb"], tags: ["200 OK"] }
+  ]
+},
+{
+  id: "placeholder", kind: "llm", chip: "LLM · placeholder gpt-5.5",
+  title: "Placeholder OpenAI: guardrail antes de salir a internet",
+  intro: "Los proveedores externos tambien pasan por el guardrail de Bedrock, y la API key nunca toca git ni Terraform state.",
+  notes: [
+    "Terraform crea el secreto con el valor REPLACE_ME_IN_AWS_CONSOLE e ignora cambios posteriores; la key real se pone en la consola (MANUAL_STEPS.md).",
+    "External Secrets Operator la sincroniza cada hora al Secret openai-secret con la clave Authorization, que es lo que agentgateway lee.",
+    "Mientras la key sea placeholder el upstream responde invalid_api_key: eso prueba que la ruta existe."
+  ],
+  steps: [
+    { t: "Request con model gpt-5.5", w: "Mismo endpoint, solo cambia el nombre del modelo.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], tags: ["provider: OpenAI"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' \\
+  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"My email is santiago.test@example.com"}]}'`, lbl: "request" },
+    { t: "promptGuard request: ApplyGuardrail antes del upstream", w: "El proxy llama la API ApplyGuardrail con el texto del request, autenticado con Pod Identity. Si interviene, responde 403 y nunca sale a OpenAI.", nodes: ["n-proxy","n-guard"], edges: ["e-proxy-guard"], tags: ["ApplyGuardrail","Pod Identity","action: Reject"],
+      code: `policies:
+  auth:
+    secretRef: { name: openai-secret }     # key Authorization, sincronizada por ESO
+  promptGuard:
+    request:
+      - bedrockGuardrails:
+          identifier: t04hom3kpz2p
+          version: "2"
+          action: Reject
+          policies: { auth: { aws: {} } }   # Pod Identity
+        response: { statusCode: 403, message: "[agentgateway-santi-open] Request blocked ..." }`, lbl: "k8s" },
+    { t: "Si pasa, agrega la API key y llama al proveedor", w: "La key sale del Secret de Kubernetes que External Secrets mantiene desde Secrets Manager. Con el placeholder el proveedor responde 401 invalid_api_key.", nodes: ["n-guard","n-ext"], edges: ["e-guard-ext"], tags: ["Secrets Manager","External Secrets"] },
+    { t: "promptGuard response y vuelta al cliente", w: "La respuesta del modelo tambien pasa por ApplyGuardrail antes de entregarse.", nodes: ["n-ext","n-guard","n-proxy","n-client"], edges: ["e-guard-ext","e-proxy-guard","e-nlb-proxy","e-client-nlb"], tags: ["response guard"] }
+  ]
+},
+{
+  id: "inference", kind: "llm", chip: "Inference routing · Gemma / Llama",
+  title: "Inference routing: modelo self-hosted detras de un InferencePool",
+  intro: "Mismo endpoint OpenAI, pero el destino es una GPU dentro del cluster y un Endpoint Picker decide el pod.",
+  notes: [
+    "Cada InferencePool y su EPP los crea el chart llm-d-router-gateway; el nombre del release es el nombre del pool (gemma, ollama).",
+    "vLLM expone las metricas que el EPP espera (cola, KV cache); Ollama no, asi que ese EPP elige sin esas senales.",
+    "La deployment de vLLM no tiene tool parser: enviar tools a gemma-3-4b-it devuelve 400. Con llama3.2 (Ollama) las tools si funcionan.",
+    "Primer arranque 10-15 min: nodo GPU + imagen vLLM ~10 GB + pesos ~8 GB."
+  ],
+  steps: [
+    { t: "Request con model gemma-3-4b-it", w: "Para el cliente es un modelo mas del catalogo.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], tags: ["provider: Custom"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' \\
+  -d '{"model":"gemma-3-4b-it","messages":[{"role":"user","content":"Who are you?"}]}'`, lbl: "request" },
+    { t: "Prompt guard con ApplyGuardrail", w: "Como no es Bedrock, el guardrail corre via API antes de tocar la GPU. Importante: aqui va el system prompt tambien, y el clasificador PROMPT_ATTACK es sensible a texto tipo system prompt.", nodes: ["n-proxy","n-guard"], edges: ["e-proxy-guard"], tags: ["ApplyGuardrail","403 si bloquea"] },
+    { t: "backendRef al InferencePool, el EPP escoge el pod", w: "El AgentgatewayModel apunta a inference.networking.k8s.io/InferencePool gemma. El Endpoint Picker de llm-d elige el pod con menos cola y mejor KV cache.", nodes: ["n-guard","n-gemma"], edges: ["e-guard-gemma"], tags: ["InferencePool","EPP llm-d","Gateway API Inference Extension"],
+      code: `spec:
+  match: { model: gemma-3-4b-it }
+  provider: Custom
+  custom:
+    backendRef: { group: inference.networking.k8s.io, kind: InferencePool, name: gemma }
+    providerOverride: openai
+  policies:
+    transformations: [{ field: model, expression: '"gemma-3-4b-it"' }]
+    promptGuard: { request: [...bedrockGuardrails...], response: [...] }`, lbl: "k8s" },
+    { t: "vLLM responde desde la g6.xlarge (NVIDIA L4)", w: "Pods con nodeSelector al pool gpu y toleration nvidia.com/gpu. Respuesta OpenAI con usage, igual que Bedrock.", nodes: ["n-gemma","n-guard","n-proxy","n-client"], edges: ["e-guard-gemma","e-proxy-guard","e-nlb-proxy","e-client-nlb"], tags: ["g6.xlarge","vLLM v0.30.0"],
+      code: `{"model":"gemma-3-4b-it","choices":[{"message":{"content":"I am Gemma, a large language model ..."}}],
+ "usage":{"prompt_tokens":22,"completion_tokens":21,"total_tokens":43}}`, lbl: "response" },
+    { t: "Variante llama3.2: InferencePool ollama", w: "Identico camino con el pool ollama. Este si acepta tool calling, por eso agent2.py lo usa por defecto.", nodes: ["n-guard","n-ollama"], edges: ["e-guard-ollama"], tags: ["Ollama 0.34.4","tools OK"] }
+  ]
+},
+{
+  id: "mcp-eks", kind: "mcp", chip: "MCP · FastMCP en EKS",
+  title: "MCP Gateway hacia un servidor FastMCP dentro de EKS",
+  intro: "El gateway federa herramientas MCP. El cliente habla JSON-RPC sobre Streamable HTTP y nunca ve el pod.",
+  notes: [
+    "El Service de FastMCP declara appProtocol agentgateway.dev/mcp y la anotacion agentgateway.dev/mcp-path.",
+    "Esta ruta va sin JWT a proposito (solo allow-list de red). Agregar la misma politica JWT del AgentCore son dos lineas.",
+    "Gotcha: los service links de Kubernetes inyectaban FASTMCP_PORT=tcp://... y FastMCP lo leia como su puerto. Se arreglo con enableServiceLinks: false.",
+    "eks_runtime_info devuelve el pod y arch aarch64: prueba que corre en Graviton."
+  ],
+  steps: [
+    { t: "initialize por JSON-RPC a /mcp", w: "El cliente abre sesion MCP. FastMCP corre stateless, asi que no hay estado que perder entre replicas.", nodes: ["n-client","n-nlb"], edges: ["e-client-nlb"], tags: ["JSON-RPC 2.0","Streamable HTTP"],
+      code: `curl -s ${GW}/mcp -H 'content-type: application/json' \\
+  -H 'accept: application/json, text/event-stream' \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
+       "params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'`, lbl: "request" },
+    { t: "HTTPRoute /mcp → AgentgatewayBackend mcp-eks", w: "Aqui el match es por path, no por modelo. El backend declara un target MCP estatico hacia el Service interno.", nodes: ["n-nlb","n-proxy"], edges: ["e-nlb-proxy"], tags: ["HTTPRoute PathPrefix","AgentgatewayBackend.mcp"],
+      code: `kind: AgentgatewayBackend
+spec:
+  mcp:
+    targets:
+      - name: fastmcp-eks
+        static: { host: fastmcp.mcp.svc.cluster.local, port: 8000, path: /mcp, protocol: StreamableHTTP }
+---
+kind: HTTPRoute
+spec:
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /mcp } }]
+      backendRefs: [{ group: agentgateway.dev, kind: AgentgatewayBackend, name: mcp-eks }]`, lbl: "k8s" },
+    { t: "El proxy reenvia al pod FastMCP en el nodo Graviton", w: "Trafico interno del cluster hacia el namespace mcp. Dos replicas, non-root, filesystem read-only.", nodes: ["n-proxy","n-fastmcp"], edges: ["e-proxy-fastmcp"], tags: ["ns mcp","arm64","m7g"] },
+    { t: "tools/list y tools/call", w: "El cliente descubre 4 herramientas y llama eks_add. El gateway podria agregar aqui autorizacion por tool, rate limit o mas targets federados bajo el mismo /mcp.", nodes: ["n-fastmcp","n-proxy","n-client"], edges: ["e-proxy-fastmcp","e-nlb-proxy","e-client-nlb"], tags: ["4 tools","eks_add = 42"],
+      code: `.venv/bin/python scripts/tests/mcp_client.py ${GW}/mcp --call eks_add '{"a": 40, "b": 2}'
+tools: ["eks_hello", "eks_add", "eks_now", "eks_runtime_info"]
+call eks_add -> 42.0`, lbl: "client" }
+  ]
+},
+{
+  id: "mcp-agentcore", kind: "mcp", chip: "MCP · AgentCore + Cognito JWT",
+  title: "MCP Gateway hacia AgentCore Runtime con JWT de Cognito",
+  intro: "Doble validacion del token: primero el gateway, luego AgentCore. Sin token no se gasta ni una llamada a AWS.",
+  notes: [
+    "Se necesita el ACCESS token, no el ID token: AgentCore verifica client_id y el gateway exige token_use == access.",
+    "preserveToken: true mas policies.auth.passthrough en el backend reenvian el mismo Bearer a AgentCore; ningun token vive en el cluster.",
+    "El contenedor del MCP server es arm64, escucha en 0.0.0.0:8000/mcp, protocolo MCP. Lo construye Terraform con docker buildx y lo sube a ECR.",
+    "Cognito no permite self sign-up: aws cognito-idp sign-up responde NotAuthorizedException."
+  ],
+  steps: [
+    { t: "Sin token → 401 en el gateway", w: "Prueba negativa: el request ni siquiera llega a AWS. El proxy responde 401 por la politica JWT en modo Strict.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], blocked: true, tags: ["401","jwtAuthentication Strict"],
+      code: `curl -s -o /dev/null -w '%{http_code}\\n' ${GW}/agentcore/mcp \\
+  -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+401`, lbl: "negative test" },
+    { t: "El usuario obtiene un access token de Cognito", w: "Demo user santigrc@amazon.com con USER_PASSWORD_AUTH. El token dura 60 minutos.", nodes: ["n-client","n-cognito"], edges: ["e-client-cognito"], tags: ["Cognito user pool","access token"],
+      code: `TOKEN=$(./scripts/cognito-token.sh)   # aws cognito-idp initiate-auth ... AuthenticationResult.AccessToken`, lbl: "shell" },
+    { t: "El gateway valida el JWT contra el JWKS de Cognito", w: "AgentgatewayPolicy sobre la HTTPRoute: issuer, JWKS remoto, y autorizacion CEL jwt.client_id == <app client> y jwt.token_use == \"access\".", nodes: ["n-client","n-nlb","n-proxy","n-cognito"], edges: ["e-client-nlb","e-nlb-proxy","e-cognito-proxy"], tags: ["JWKS","CEL authorization","preserveToken"],
+      code: `kind: AgentgatewayPolicy
+spec:
+  targetRefs: [{ kind: HTTPRoute, name: mcp-agentcore }]
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      preserveToken: true
+      providers:
+        - issuer: https://cognito-idp.us-east-1.amazonaws.com/<pool>
+          jwks: { remote: { url: .../.well-known/jwks.json } }
+    authorization:
+      action: Allow
+      policy:
+        matchExpressions:
+          - 'jwt.client_id == "<app-client-id>"'
+          - 'jwt.token_use == "access"'`, lbl: "k8s" },
+    { t: "Passthrough del mismo token hacia AgentCore Runtime", w: "El backend aws.agentCore firma la llamada InvokeAgentRuntime con Pod Identity y reenvia el Bearer. AgentCore lo valida otra vez con su customJWTAuthorizer.", nodes: ["n-proxy","n-agentcore","n-cognito"], edges: ["e-proxy-agentcore","e-cognito-agentcore"], tags: ["bedrock-agentcore:InvokeAgentRuntime","auth.passthrough","customJWTAuthorizer"],
+      code: `kind: AgentgatewayBackend
+spec:
+  aws:
+    agentCore: { agentRuntimeArn: arn:aws:bedrock-agentcore:us-east-1:<acct>:runtime/agentgateway_santi_open_mcp-XXXX }
+  policies:
+    auth: { passthrough: {} }`, lbl: "k8s" },
+    { t: "Herramientas de AgentCore de vuelta al cliente", w: "agentcore_runtime_info devuelve aarch64: corre en AgentCore, no en el cluster.", nodes: ["n-agentcore","n-proxy","n-client"], edges: ["e-proxy-agentcore","e-nlb-proxy","e-client-nlb"], tags: ["agentcore_multiply = 42"],
+      code: `.venv/bin/python scripts/tests/mcp_client.py ${GW}/agentcore/mcp --token "$TOKEN" \\
+  --call agentcore_multiply '{"a": 6, "b": 7}'
+tools: ["agentcore_hello", "agentcore_multiply", "agentcore_weather_demo", "agentcore_runtime_info"]
+call agentcore_multiply -> 42.0`, lbl: "client" }
+  ]
+},
+{
+  id: "guardrail", kind: "guard", chip: "Guardrail · request bloqueado",
+  title: "Un request bloqueado, dos formas de verlo",
+  intro: "El mismo guardrail protege todo, pero la experiencia cambia segun el mecanismo: nativo en Bedrock o via ApplyGuardrail.",
+  notes: [
+    "Nativo (Bedrock): HTTP 200 y el mensaje configurado como contenido del asistente. Los tokens de usage quedan en 0.",
+    "ApplyGuardrail (placeholders y self-hosted): HTTP 403 con el mensaje custom del promptGuard, antes de cualquier llamada upstream.",
+    "En Converse el guardrail evalua toda la conversacion, incluidas respuestas previas del asistente. Con fuerza HIGH eso bloqueaba charla bancaria normal (v1). v2 usa MEDIUM/LOW.",
+    "Para depurar que politica dispara: aws bedrock-runtime apply-guardrail --source INPUT --content '[{\"text\":{\"text\":\"...\"}}]'."
+  ],
+  steps: [
+    { t: "Prompt con PII a un modelo Bedrock", w: "El email santiago.test@example.com esta configurado como BLOCK.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], tags: ["PII EMAIL"],
+      code: `curl -s ${GW}/v1/chat/completions -H 'content-type: application/json' \\
+  -d '{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"Store my email santiago.test@example.com"}]}'`, lbl: "request" },
+    { t: "Bedrock interviene dentro de Converse", w: "El guardrailConfig viaja con la invocacion. Bedrock no llama al modelo y devuelve el mensaje bloqueado.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], blocked: true, tags: ["guardrail nativo","GUARDRAIL_INTERVENED"] },
+    { t: "Respuesta 200 con el mensaje del guardrail", w: "Para un cliente OpenAI parece una respuesta normal del asistente. Por eso las pruebas miran el contenido, no el codigo HTTP.", nodes: ["n-bedrock","n-proxy","n-client"], edges: ["e-proxy-bedrock","e-nlb-proxy","e-client-nlb"], tags: ["HTTP 200"],
+      code: `{"choices":[{"message":{"role":"assistant",
+  "content":"[agentgateway-santi-open guardrail] Your request was blocked by Amazon Bedrock Guardrails (input policy)."}}],
+ "usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`, lbl: "response" },
+    { t: "El mismo prompt a gemma-3-4b-it o gpt-5.5", w: "Ahora el guardrail es el promptGuard del gateway: llama ApplyGuardrail antes de tocar el upstream.", nodes: ["n-client","n-nlb","n-proxy","n-guard"], edges: ["e-client-nlb","e-nlb-proxy","e-proxy-guard"], blocked: true, tags: ["ApplyGuardrail","action: Reject"] },
+    { t: "Respuesta 403 y nunca sale al modelo", w: "Ni la GPU ni OpenAI reciben el request. Es tambien una demo util con la key placeholder.", nodes: ["n-guard","n-proxy","n-client"], edges: ["e-proxy-guard","e-nlb-proxy","e-client-nlb"], tags: ["HTTP 403"],
+      code: `HTTP/1.1 403 Forbidden
+[agentgateway-santi-open] Request blocked by Amazon Bedrock Guardrails (prompt guard).`, lbl: "response" }
+  ]
+},
+{
+  id: "strands", kind: "agent", chip: "Agente Strands · tool calling",
+  title: "Agente Strands con tools bancarias a traves del gateway",
+  intro: "El agente corre en tu laptop. El gateway traduce el ciclo de tool calling OpenAI ↔ Bedrock; las tools se ejecutan localmente.",
+  notes: [
+    "Strands siempre envia \"tools\": []. Bedrock rechaza la lista vacia con 400, por eso common.GatewayOpenAIModel la omite cuando no hay tools.",
+    "El agente nunca tiene credenciales AWS: el gateway firma con Pod Identity.",
+    "agent2.py hace lo mismo contra llama3.2 (InferencePool ollama) sin system prompt: el prompt guard puntua los system prompts como PROMPT_ATTACK.",
+    "La conversacion tiene memoria: cada turno reenvia el historial completo, que el guardrail nativo evalua entero."
+  ],
+  steps: [
+    { t: "El usuario escribe en el chat interactivo", w: "python scripts/agents/agent1.py abre el loop. La pregunta necesita datos que solo una tool tiene.", nodes: ["n-client"], edges: [], tags: ["Strands Agent","OpenAIModel base_url"],
+      code: `tu > Dame el saldo de ahorros-1234 y dime si hay canales con incidentes`, lbl: "stdin" },
+    { t: "Strands envia chat.completions con la lista de tools", w: "OpenAIModel apunta a http://<NLB>/v1. El body incluye tools en formato function calling y el system prompt bancario.", nodes: ["n-client","n-nlb","n-proxy"], edges: ["e-client-nlb","e-nlb-proxy"], tags: ["tools[]","stream: true"],
+      code: `model = OpenAIModel(client_args={"base_url": f"{GW}/v1", "api_key": "not-needed"},
+                    model_id="claude-haiku-4-5", params={"max_tokens": 600})
+agent = Agent(model=model, tools=[consulta_saldo, estado_canales, ...], system_prompt=SYSTEM_PROMPT)`, lbl: "python" },
+    { t: "El gateway traduce tools a toolConfig de Bedrock", w: "Pod Identity, guardrail nativo, y la conversion de function calling OpenAI a toolUse de Converse la hace agentgateway.", nodes: ["n-proxy","n-bedrock"], edges: ["e-proxy-bedrock"], tags: ["Pod Identity","toolConfig"] },
+    { t: "Claude responde con tool_calls", w: "Haiku decide llamar consulta_saldo y estado_canales. El gateway devuelve finish_reason tool_calls en formato OpenAI.", nodes: ["n-bedrock","n-proxy","n-client"], edges: ["e-proxy-bedrock","e-nlb-proxy","e-client-nlb"], tags: ["finish_reason: tool_calls"],
+      code: `"tool_calls": [
+  {"id": "tooluse_...", "type": "function", "function": {"name": "consulta_saldo", "arguments": "{\\"cuenta\\": \\"ahorros-1234\\"}"}},
+  {"id": "tooluse_...", "type": "function", "function": {"name": "estado_canales", "arguments": "{\\"solo_incidentes\\": true}"}}
+]`, lbl: "response" },
+    { t: "Strands ejecuta las tools en la laptop", w: "Las funciones @tool corren localmente con datos demo. Ningun sistema bancario real.", nodes: ["n-client"], edges: ["e-agent-loop"], tags: ["@tool local","datos DEMO"],
+      code: `Tool #1: consulta_saldo   -> {"cuenta":"ahorros-1234","saldo":4850000.0,"moneda":"COP",...}
+Tool #2: estado_canales   -> [{"canal":"Cajeros (ATM)","estado":"DEGRADADO",...}, {"canal":"ACH","estado":"MANTENIMIENTO",...}]`, lbl: "local" },
+    { t: "Segunda vuelta con los resultados y respuesta final", w: "Strands reenvia el historial con mensajes role tool. El gateway los traduce a toolResult y Haiku redacta la respuesta en espanol paisa.", nodes: ["n-client","n-nlb","n-proxy","n-bedrock"], edges: ["e-client-nlb","e-nlb-proxy","e-proxy-bedrock"], tags: ["role: tool","usage acumulado"],
+      code: `agent1 > Tu cuenta ahorros-1234 tiene $4.850.000 COP.
+Canales con incidentes: Cajeros (ATM) DEGRADADO (intermitencia en Antioquia) y ACH en MANTENIMIENTO (02:00-04:00 COT).
+[agent1] tokens in=2806 out=297 total=3103`, lbl: "stdout" }
+  ]
+}
+];
+
+/* ======================================================================
+   Player logic
+   ====================================================================== */
+const $ = (id) => document.getElementById(id);
+const allNodes = [...document.querySelectorAll(".node")];
+const allEdges = [...document.querySelectorAll(".edge")];
+let scn = SCENARIOS[0], idx = 0, timer = null;
+
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function renderChips() {
+  const nav = $("chips");
+  nav.innerHTML = "";
+  SCENARIOS.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.dataset.kind = s.kind; b.dataset.id = s.id;
+    b.setAttribute("aria-pressed", s.id === scn.id ? "true" : "false");
+    b.innerHTML = `<span class="dot"></span>${esc(s.chip)}`;
+    b.addEventListener("click", () => selectScenario(s.id));
+    nav.appendChild(b);
+  });
+}
+
+function selectScenario(id) {
+  stop();
+  scn = SCENARIOS.find(s => s.id === id) || SCENARIOS[0];
+  idx = 0;
+  try { localStorage.setItem("agw-scn", scn.id); } catch (e) {}
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.id === scn.id ? "true" : "false"));
+  $("scnTitle").textContent = scn.title;
+  $("scnIntro").textContent = scn.intro;
+  const kindLabel = { llm: "LLM-GW", mcp: "MCP-GW", guard: "Guardrails", agent: "Agente" }[scn.kind];
+  const k = $("scnKind"); k.textContent = kindLabel; k.className = "kind " + scn.kind;
+  $("scnNotes").innerHTML = scn.notes.map(n => `<li>${esc(n)}</li>`).join("");
+  $("scnMore").open = false;
+  const list = $("stepsList"); list.innerHTML = "";
+  scn.steps.forEach((st, i) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.innerHTML = `<span class="n">${i + 1}</span><span>${esc(st.t)}</span>`;
+    b.addEventListener("click", () => { stop(); goTo(i); });
+    list.appendChild(b);
+  });
+  const prog = $("progress"); prog.innerHTML = scn.steps.map(() => "<span></span>").join("");
+  goTo(0);
+}
+
+function goTo(i) {
+  idx = Math.max(0, Math.min(i, scn.steps.length - 1));
+  const st = scn.steps[idx];
+  // diagram state: visited = nodes/edges of previous steps, active = this step
+  const visitedNodes = new Set(), visitedEdges = new Set();
+  scn.steps.slice(0, idx).forEach(s => { s.nodes.forEach(n => visitedNodes.add(n)); s.edges.forEach(e => visitedEdges.add(e)); });
+  allNodes.forEach(n => {
+    n.classList.remove("active", "visited", "blocked", "dim");
+    if (st.nodes.includes(n.id)) n.classList.add(st.blocked && n.id === st.nodes[st.nodes.length - 1] ? "blocked" : "active");
+    else if (visitedNodes.has(n.id)) n.classList.add("visited");
+    else n.classList.add("dim");
+  });
+  allEdges.forEach(e => {
+    e.classList.remove("active", "blocked");
+    if (st.edges.includes(e.id)) e.classList.add(st.blocked && e.id === st.edges[st.edges.length - 1] ? "blocked" : "active");
+  });
+  // text
+  $("stepNum").textContent = idx + 1; $("stepNum").className = "num" + (st.blocked ? " blocked" : "");
+  $("stepTitle").textContent = st.t; $("stepWhy").textContent = st.w;
+  $("stepTags").innerHTML = (st.tags || []).map(t => `<span class="tag ${tagClass(t)}">${esc(t)}</span>`).join("");
+  const code = $("stepCode");
+  if (st.code) { code.hidden = false; code.innerHTML = `<span class="lbl">${esc(st.lbl || "")}</span>${esc(st.code)}`; }
+  else { code.hidden = true; }
+  [...$("stepsList").children].forEach((b, j) => { b.classList.toggle("cur", j === idx); b.classList.toggle("done", j < idx); });
+  [...$("progress").children].forEach((s, j) => { s.className = j < idx ? "done" : j === idx ? "cur" : ""; });
+  $("prevBtn").disabled = idx === 0;
+  $("nextBtn").disabled = idx === scn.steps.length - 1;
+  $("diagTitle").textContent = `Paso ${idx + 1} de ${scn.steps.length}`;
+}
+
+function tagClass(t) {
+  const s = t.toLowerCase();
+  if (s.includes("pod identity")) return "id";
+  if (s.includes("guard") || s.includes("403") || s.includes("pii")) return s.includes("403") ? "block" : "guard";
+  if (s.includes("jwt") || s.includes("jwks") || s.includes("token") || s.includes("401") || s.includes("cognito")) return s.includes("401") ? "block" : "jwt";
+  return "";
+}
+
+function play() {
+  if (timer) { stop(); return; }
+  if (idx === scn.steps.length - 1) goTo(0);
+  $("playBtn").textContent = "❚❚ Pausar";
+  timer = setInterval(() => {
+    if (idx >= scn.steps.length - 1) { stop(); return; }
+    goTo(idx + 1);
+  }, 3800);
+}
+function stop() { if (timer) clearInterval(timer); timer = null; $("playBtn").textContent = "▶ Reproducir"; }
+
+$("prevBtn").addEventListener("click", () => { stop(); goTo(idx - 1); });
+$("nextBtn").addEventListener("click", () => { stop(); goTo(idx + 1); });
+$("playBtn").addEventListener("click", play);
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowRight") { stop(); goTo(idx + 1); }
+  else if (e.key === "ArrowLeft") { stop(); goTo(idx - 1); }
+  else if (e.key === " ") { e.preventDefault(); play(); }
+});
+
+// theme toggle (system -> dark -> light -> system)
+$("themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === null ? "dark" : cur === "dark" ? "light" : null;
+  if (next) document.documentElement.setAttribute("data-theme", next); else document.documentElement.removeAttribute("data-theme");
+  try { next ? localStorage.setItem("agw-theme", next) : localStorage.removeItem("agw-theme"); } catch (e) {}
+});
+try { const t = localStorage.getItem("agw-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+
+// boot
+renderChips();
+let initial = SCENARIOS[0].id;
+try { const saved = localStorage.getItem("agw-scn"); if (saved && SCENARIOS.some(s => s.id === saved)) initial = saved; } catch (e) {}
+if (location.hash) { const h = location.hash.slice(1); if (SCENARIOS.some(s => s.id === h)) initial = h; }
+selectScenario(initial);
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@ chat() { # chat <model> <prompt> [extra curl args...]
 log "1) Model discovery (/v1/models)"
 curl -s "http://$GW/v1/models" | jq -r '.data[].id' | sed 's/^/   - /'
 
-for m in claude-sonnet-4-5 claude-haiku-4-5 nova-pro nova-lite; do
+for m in claude-sonnet-4-5 claude-haiku-4-5 gpt-6-luna gpt-6-sol; do
   log "2) Bedrock routing -> $m"
   out="$(chat "$m" "In one short sentence, which model are you and who built you?")"
   if echo "$out" | jq -e '.choices[0].message.content' >/dev/null 2>&1; then
@@ -23,11 +23,21 @@ for m in claude-sonnet-4-5 claude-haiku-4-5 nova-pro nova-lite; do
   else fail "$m -> $(echo "$out" | head -c 300)"; fi
 done
 
-log "3) Virtual model 'smart' (conditional): default tier -> nova-lite, header x-model-tier: premium -> claude-sonnet-4-5"
+# OpenAI GPT-6 on Bedrock rejects temperature/top_p (ValidationException); the gateway nulls them (dropParams)
+for m in gpt-6-luna smart; do
+  log "2b) $m with temperature=0.2 and top_p=0.9 (dropped by the gateway before the Converse call)"
+  out="$(curl -s --max-time 120 "http://$GW/v1/chat/completions" -H 'content-type: application/json' \
+    -d "$(jq -cn --arg m "$m" '{model:$m, temperature:0.2, top_p:0.9, max_tokens:60, messages:[{role:"user",content:"Reply with the word OK."}]}')")"
+  if echo "$out" | jq -e '.choices[0].message.content' >/dev/null 2>&1; then
+    ok "$m accepted the request: model=$(echo "$out" | jq -r '.model') content=$(echo "$out" | jq -r '.choices[0].message.content' | head -c 60)"
+  else fail "$m with temperature/top_p -> $(echo "$out" | head -c 300)"; fi
+done
+
+log "3) Virtual model 'smart' (conditional): default tier -> gpt-6-luna, header x-model-tier: premium -> claude-sonnet-4-5"
 chat smart "Say only your model family name." | jq -r '"   default  -> model=\(.model)"'
 chat smart "Say only your model family name." -H 'x-model-tier: premium' | jq -r '"   premium  -> model=\(.model)"'
 
-log "4) Virtual model 'resilient' (failover claude-sonnet-4-5 -> nova-pro)"
+log "4) Virtual model 'resilient' (failover claude-sonnet-4-5 -> gpt-6-sol)"
 chat resilient "Reply with the word OK." | jq -r '"   resilient -> model=\(.model) content=\(.choices[0].message.content)"'
 
 log "5) Streaming (SSE) through the gateway"

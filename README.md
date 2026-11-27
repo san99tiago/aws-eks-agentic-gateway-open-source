@@ -10,10 +10,10 @@ Open-source, fully reproducible reference deployment of **[agentgateway](https:/
 
 | Capability | What is deployed | AWS services |
 | --- | --- | --- |
-| **LLM Gateway** | One OpenAI-compatible endpoint (`/v1/chat/completions`, `/v1/models`) routing by model name to Amazon Bedrock inference profiles (Claude Sonnet 4.5, Claude Haiku 4.5, Nova Pro, Nova Lite), virtual models (conditional + failover), and placeholders for OpenAI and Gemini | Amazon Bedrock, Secrets Manager |
+| **LLM Gateway** | One OpenAI-compatible endpoint (`/v1/chat/completions`, `/v1/models`) routing by model name to Amazon Bedrock inference profiles (Claude Sonnet 4.5, Claude Haiku 4.5, OpenAI GPT-6 Luna, OpenAI GPT-6 Sol), virtual models (conditional + failover), and placeholders for OpenAI and Gemini | Amazon Bedrock, Secrets Manager |
 | **MCP Gateway** | `/mcp` federates a FastMCP server running in EKS; `/agentcore/mcp` proxies an MCP server hosted on **Amazon Bedrock AgentCore Runtime** protected by **Cognito JWT** (demo user, self sign-up disabled) | AgentCore Runtime, Cognito, ECR |
 | **Inference Routing** | Self-hosted **Ollama (`llama3.2:3b`)** and **Gemma 3 4B (vLLM)** on GPU nodes behind Gateway API `InferencePool`s with the llm-d Router endpoint picker | EKS Auto Mode GPU NodePool (g6.xlarge) |
-| **Guardrails** | One **Amazon Bedrock Guardrail** (PII, denied topics, prompt attacks, profanity) enforced natively on Bedrock models and through the ApplyGuardrail API on every other model | Amazon Bedrock Guardrails |
+| **Guardrails** | One **Amazon Bedrock Guardrail** (PII, denied topics, prompt attacks, profanity; strengths tunable via Terraform variables, auto-published versions) enforced natively on Bedrock models and through the ApplyGuardrail API on every other model | Amazon Bedrock Guardrails |
 
 Everything is Terraform + Helm (remote state in S3 with native locking). Naming standard: `agentgateway-santi-open`. Network exposure: **only your IP** (`/32`).
 
@@ -32,7 +32,7 @@ flowchart LR
   NLB --> P[agentgateway proxy<br/>Gateway API · EKS Pod Identity]
 
   subgraph LLM["LLM-GW  /v1/chat/completions"]
-    P -->|claude-*, nova-*| B[Amazon Bedrock<br/>inference profiles + native Guardrail]
+    P -->|claude-* · gpt-6-luna · gpt-6-sol| B[Amazon Bedrock<br/>Claude + OpenAI GPT-6<br/>inference profiles + native Guardrail]
     P -->|smart / resilient| V[Virtual models<br/>conditional · failover] --> B
     P -->|gpt-5.5 · gemini-2.5-flash| G[ApplyGuardrail] --> X[OpenAI / Gemini<br/>placeholders]
     P -->|gemma-3-4b-it · llama3.2| G2[ApplyGuardrail] --> IP[InferencePool + EPP<br/>llm-d Router] --> GPU[vLLM Gemma · Ollama<br/>g6.xlarge L4]
@@ -62,7 +62,9 @@ flowchart TB
 ```text
 .
 ├── README.md · MANUAL_STEPS.md · TESTING_INSTRUCTIONS.md · LICENSE.md
+├── INDEX.html                       # interactive flow explorer for demos (open locally)
 ├── assets/                          # draw.io diagram (+ generator) and DPI-400 PNG
+├── postman/                         # Postman collection (65 requests, tests + live examples), env template, generator
 ├── apps/
 │   ├── fastmcp-eks/                 # FastMCP server for EKS (Streamable HTTP, arm64)
 │   └── agentcore-mcp/               # FastMCP server for AgentCore Runtime (MCP protocol, arm64)
@@ -72,9 +74,14 @@ flowchart TB
 │   └── adr/                         # 14 Architecture Decision Records
 ├── scripts/
 │   ├── validate_solution_scripts.sh # didactic validator (menu + CLI): LLM-GW, MCP-GW, routing, guardrails, security
-│   ├── deploy-all.sh · destroy-all.sh · get-gateway-url.sh · cognito-token.sh
-│   ├── agents/                      # Strands Agents samples: agent1.py (Bedrock Haiku), agent2.py (open models)
-│   └── tests/                       # individual suites + FastMCP test client
+│   ├── deploy-all.sh · destroy-all.sh · get-gateway-url.sh · cognito-token.sh · ui.sh (admin UI + metrics via port-forward)
+│   ├── postman-env.sh               # writes the git-ignored Postman environment from the live deployment
+│   ├── agents/                      # Strands Agents samples (interactive chat + DEMO banking tools)
+│   │   ├── agent1.py                # Bedrock (Claude Haiku 4.5 default) through the gateway
+│   │   ├── agent2.py                # self-hosted InferencePools (llama3.2 default, gemma-3-4b-it)
+│   │   ├── tools_banco.py           # consulta_saldo, estado_canales, movimientos, tasa_cambio, bloquear_tarjeta, hora_colombia
+│   │   └── common.py                # gateway URL, CLI args (--model/--tools), interactive loop
+│   └── tests/                       # individual suites, FastMCP test client, test-postman.sh (Newman)
 └── terraform/
     ├── kubernetes/                  # Stack 1: VPC + EKS Auto Mode + custom NodePools (local Helm chart)
     ├── platform/                    # Stack 2: AWS services around the cluster
@@ -99,9 +106,12 @@ poetry install --no-root
 ./scripts/deploy-all.sh -auto-approve
 # 3. validate (didactic menu; or: ./scripts/validate_solution_scripts.sh all)
 ./scripts/validate_solution_scripts.sh
+#    ...or the Postman collection headless (65 requests, ~45 s): ./scripts/tests/test-postman.sh
 # 4. destroy when done (≈USD 2.1/h while running)
 ./scripts/destroy-all.sh -auto-approve
 ```
+
+Interactive walkthrough of every request type (open [INDEX.html](INDEX.html) in a browser, no server needed): animated architecture diagram plus step-by-step player for Bedrock, virtual models, placeholders, InferencePools, MCP on EKS, MCP on AgentCore with Cognito JWT, blocked requests and the Strands tool-calling loop.
 
 Detailed runbook (deploy, validate, destroy, troubleshooting): [docs/STEP_BY_STEP.md](docs/STEP_BY_STEP.md).
 Validator manual: [docs/VALIDATION_SCRIPT_MANUAL.md](docs/VALIDATION_SCRIPT_MANUAL.md). Expected results: [TESTING_INSTRUCTIONS.md](TESTING_INSTRUCTIONS.md).
@@ -129,9 +139,10 @@ Manual actions (only optional API keys): [MANUAL_STEPS.md](MANUAL_STEPS.md).
 | --- | --- | --- | --- |
 | `claude-sonnet-4-5` | Bedrock | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | native |
 | `claude-haiku-4-5` | Bedrock | `global.anthropic.claude-haiku-4-5-20251001-v1:0` | native |
-| `nova-pro` / `nova-lite` | Bedrock | `us.amazon.nova-pro-v1:0` / `us.amazon.nova-lite-v1:0` | native |
-| `smart` | virtual conditional | `x-model-tier: premium` -> Claude Sonnet 4.5, else Nova Lite | inherited |
-| `resilient` | virtual failover | Claude Sonnet 4.5 -> Nova Pro | inherited |
+| `gpt-6-luna` | Bedrock (OpenAI, economical tier) | `us.openai.gpt-6-luna` · gateway drops `temperature`/`top_p`, reasoning effort `none` | native |
+| `gpt-6-sol` | Bedrock (OpenAI, premium tier) | `us.openai.gpt-6-sol` · gateway drops `temperature`/`top_p`, reasoning effort `none` | native |
+| `smart` | virtual conditional | `x-model-tier: premium` -> Claude Sonnet 4.5, else GPT-6 Luna | inherited |
+| `resilient` | virtual failover | Claude Sonnet 4.5 -> GPT-6 Sol | inherited |
 | `gpt-5.5` | OpenAI placeholder | key from Secrets Manager | ApplyGuardrail |
 | `gemini-2.5-flash` | Gemini placeholder | key from Secrets Manager | ApplyGuardrail |
 | `gemma-3-4b-it` | InferencePool `gemma` | vLLM on g6.xlarge | ApplyGuardrail |
@@ -166,25 +177,104 @@ client.chat.completions.create(model="llama3.2", messages=[{"role": "user", "con
 
 ### Strands Agents samples (`scripts/agents/`)
 
-| Script | Model | What it shows |
+Two interactive agents built with [Strands Agents](https://strandsagents.com) that use the gateway as an
+OpenAI-compatible model provider (`OpenAIModel` with `base_url`). Without a prompt argument they open a chat
+loop with conversation memory (type `salir` to exit); with a prompt they answer once. Both share a set of
+**DEMO banking tools** (static data) in `tools_banco.py`, selectable per run:
+
+| Tool | What it returns |
+| --- | --- |
+| `consulta_saldo(cuenta)` | balance of `ahorros-1234`, `corriente-5678`, `usd-9012` |
+| `estado_canales(solo_incidentes)` | status/latency of app, web, ATMs, PSE, branches, ACH |
+| `movimientos(cuenta, ultimos)` | last N transactions |
+| `tasa_cambio(moneda, monto)` | DEMO FX rate to COP and conversion |
+| `bloquear_tarjeta(tarjeta, motivo)` | DEMO card block by alias (`visa-principal`, `mastercard-viajes`, `debito-ahorros`) with a ticket id |
+| `hora_colombia()` | current time in Colombia |
+
+| Script | Default model | Notes |
 | --- | --- | --- |
-| `agent1.py` | `claude-haiku-4-5` (override with `MODEL=nova-lite`, `nova-pro`, `smart`...) | Strands `OpenAIModel` pointed at the gateway, a local `@tool` (`hora_colombia`) whose tool-call round trip is translated OpenAI <-> Bedrock by agentgateway, token usage |
-| `agent2.py` | `gemma-3-4b-it` (override with `MODEL=llama3.2`) | Same agent against a self-hosted model behind an `InferencePool`; a blocked prompt (PII) surfaces as `PermissionDeniedError` 403 from the prompt guard |
+| `agent1.py` | `claude-haiku-4-5` (Bedrock) | Spanish banking system prompt; tool-call round trip translated OpenAI <-> Bedrock by agentgateway. `--model gpt-6-luna`, `gpt-6-sol`, `smart`, `resilient`... |
+| `agent2.py` | `llama3.2` (Ollama InferencePool) | No system prompt (see gotchas). `--model gemma-3-4b-it --tools none`: the vLLM deployment has no tool parser and answers 400 `"auto" tool choice requires --enable-auto-tool-choice` when tools are sent |
 
 ```bash
 poetry install --no-root                                   # installs strands-agents[openai]
 export AGENTGATEWAY_URL=$(./scripts/get-gateway-url.sh)   # optional: the scripts fall back to kubectl
-.venv/bin/python scripts/agents/agent1.py "Que hora es en Colombia y que es EKS Auto Mode?"
-MODEL=llama3.2 .venv/bin/python scripts/agents/agent2.py "What model are you?"
+.venv/bin/python scripts/agents/agent1.py                                        # interactive, all tools
+.venv/bin/python scripts/agents/agent1.py "Saldo de ahorros-1234 y canales con incidentes?"
+.venv/bin/python scripts/agents/agent1.py --tools consulta-saldo,estado-canales   # subset (dash or underscore)
+.venv/bin/python scripts/agents/agent2.py "Que canales estan degradados?"         # llama3.2 + tools
+.venv/bin/python scripts/agents/agent2.py --model gemma-3-4b-it --tools none "Who are you?"
 ```
 
-Two gotchas found while wiring Strands to the gateway (both handled in the samples):
+Gotchas found while wiring Strands to the gateway (all handled in the samples):
 
-- Strands always sends `"tools": []`. Bedrock rejects an empty tool list with HTTP 400 `The provided request is not valid`.
-  Give the agent at least one tool (agent1) or drop the empty key in a small `OpenAIModel` subclass (agent2).
-- On non-Bedrock models the guardrail runs through ApplyGuardrail on the raw text, and the `PROMPT_ATTACK` filter at
-  HIGH strength flags instruction-like system prompts such as "You are a concise assistant." as injection (HTTP 403).
-  Keep instructions in the user turn for those models; Bedrock models accept system prompts normally.
+- Strands always sends `"tools": []`. Bedrock rejects an empty tool list with HTTP 400 `The provided request is not valid`;
+  `common.GatewayOpenAIModel` drops the key when the agent has no tools (`--tools none`).
+- OpenAI GPT-6 Luna/Sol on Bedrock answer `ValidationException: This model doesn't support the temperature field`
+  (same for `topP`). The samples send `temperature=0.2`, so the gateway fixes it for every client: the
+  `dropParams` list of each Bedrock model sets `temperature`/`top_p` to `null` (CEL `transformations`) before the
+  OpenAI -> Converse translation. Claude keeps honoring both parameters.
+- When GPT-6 reasons (default effort, and even `low` on harder prompts) Bedrock returns the encrypted reasoning as
+  `reasoningContent.redactedContent`, and agentgateway v1.5.0 fails with `failed to parse response: data did not
+  match any variant of untagged enum ReasoningContentBlock`. `openaiReasoningEffort: none` injects
+  `additionalModelRequestFields.reasoning.effort = "none"` after the translation (`finalTransformations`), so no
+  reasoning block comes back (also faster and cheaper: 13 instead of 81 output tokens for a one-line answer). The
+  upstream fix is agentgateway v1.6.0 (non-streaming) and v1.7.0 (streaming); after upgrading, raise the effort
+  per model in `bedrock_models`.
+- On non-Bedrock models the guardrail runs through ApplyGuardrail on the raw text (system prompt included), and the
+  `PROMPT_ATTACK` classifier scores English system-prompt-like text such as "You are a concise assistant." as a HIGH
+  confidence attack, so it is blocked even at MEDIUM strength (HTTP 403); a Spanish banking system prompt scores MEDIUM
+  confidence once combined with the user turn and is blocked too. agent2 therefore has no system prompt; set
+  `guardrail_prompt_attack_strength = "LOW"` if you want system prompts on self-hosted models. Bedrock models (agent1)
+  accept system prompts normally because Bedrock does not evaluate the system field as a prompt attack.
+- Guardrail strength matters more than it looks: HIGH blocks even LOW-confidence matches, and on Converse the native
+  guardrail evaluates the **whole conversation**. With everything at HIGH (version 1), benign follow-ups such as
+  "consultar saldo" were blocked once the chat history mentioned "robo/fraude". Version 2 uses MEDIUM content filters,
+  MISCONDUCT LOW and card numbers ANONYMIZE; tune with `guardrail_*_strength` in `terraform/platform/terraform.tfvars`
+  (every change publishes a new version and stack 3 picks it up). `bloquear_tarjeta` still identifies cards by alias,
+  which keeps card digits out of the conversation altogether.
+
+## Postman collection (`postman/`)
+
+A Postman collection doubles as an API tour and as a test suite: **65 requests in 10 folders**
+(Discovery, Bedrock Claude, Bedrock OpenAI GPT-6, virtual models, inference routing, external
+placeholders, guardrails, MCP on EKS, AgentCore + Cognito JWT, observability). Each request explains what
+it validates and the expected result, runs `pm.test` assertions and includes a saved example captured
+from a live run. Names follow `<AREA>-<NN> · <target> · <scenario> → <expected>`, for example
+`GRD-09 · gemma-3-4b-it · PII email → 403 prompt guard`.
+
+```bash
+./scripts/postman-env.sh                              # local environment from the live deployment (git-ignored)
+# Postman: import postman/*.postman_collection.json + postman/*.local.postman_environment.json, fill cognitoPassword
+./scripts/tests/test-postman.sh                       # headless with Newman: 65 requests, 295 assertions
+WITH_OBSERVABILITY=1 ./scripts/tests/test-postman.sh  # + admin UI / config_dump / metrics via port-forward
+```
+
+Details, diagrams and the naming convention: [postman/README.md](postman/README.md).
+
+## Observability: agentgateway UI, metrics and logs
+
+The proxy ships a read-only admin UI (listeners, routes, backends, policies, config dump) on port 15000 and a
+Prometheus endpoint on port 15020. Neither is exposed on the NLB (ADR-013); reach both through a port-forward:
+
+```bash
+./scripts/ui.sh                       # opens http://localhost:15000/ui/ and forwards :15020/metrics
+curl -s localhost:15020/metrics | grep agentgateway_gen_ai_client_token_usage_sum
+```
+
+Per-request data also lands in CloudWatch without extra components: the proxy's JSON access logs
+(`gen_ai.request.model`, `gen_ai.usage.*_tokens`, `agw.ai.time_to_first_token`, `http.status`) go to the Container
+Insights log group `/aws/containerinsights/agentgateway-santi-open-eks/application`, and the guardrail publishes
+`Invocations`, `InvocationsIntervened`, `TextUnitCount` and `InvocationLatency` in the `AWS/Bedrock/Guardrails` namespace.
+Example Logs Insights query (tokens and TTFT per model):
+
+```sql
+fields @timestamp, `http.status`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`
+| filter `protocol` = "llm"
+| stats count() as requests, sum(`gen_ai.usage.input_tokens`) as tokens_in,
+        sum(`gen_ai.usage.output_tokens`) as tokens_out, avg(`agw.ai.time_to_first_token`) as ttft_avg
+  by `gen_ai.request.model`
+```
 
 ## Security posture
 
@@ -219,31 +309,40 @@ secrets management, AgentCore JWT passthrough, image pipeline, observability and
 
 ## Validation results
 
-Run executed on 2026-09-27 from the allow-listed IP against
-`agentgateway-santi-open-nlb-<hash>.elb.us-east-1.amazonaws.com` (HTTP :80). Full commands in
-[TESTING_INSTRUCTIONS.md](TESTING_INSTRUCTIONS.md); raw suites live in `scripts/tests/`.
+Run executed on 2026-11-26 from the allow-listed IP against
+`agentgateway-santi-open-nlb-<hash>.elb.us-east-1.amazonaws.com` (HTTP :80), right after a redeploy from zero
+(`./scripts/deploy-all.sh -auto-approve`: 73 + 26 + 12 = 111 resources in ~35 min, state in S3). Full commands in
+[TESTING_INSTRUCTIONS.md](TESTING_INSTRUCTIONS.md); raw suites live in `scripts/tests/` (`run-all-tests.sh`: 0 failures).
 
 | # | Capability | Check | Result |
 | --- | --- | --- | --- |
 | 1 | LLM-GW | `/v1/models` lists the 10 client-facing models | PASS |
-| 2 | LLM-GW | Bedrock routing `claude-sonnet-4-5`, `claude-haiku-4-5`, `nova-pro`, `nova-lite` (Pod Identity, no keys) | PASS - OpenAI-shaped responses with token usage |
-| 3 | LLM-GW | Virtual `smart`: default -> `us.amazon.nova-lite-v1:0`; header `x-model-tier: premium` -> `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | PASS |
-| 4 | LLM-GW | Virtual `resilient` (failover) served by priority-0 target | PASS |
-| 5 | LLM-GW | SSE streaming through the gateway | PASS |
-| 6 | LLM-GW | Placeholders `gpt-5.5` / `gemini-2.5-flash` reach the provider and fail with `invalid_api_key` (placeholder value) | PASS (expected until MANUAL_STEPS) |
-| 7 | Guardrails | Bedrock-native: PII email, denied topic, prompt attack, profanity, custom word blocked on Claude Haiku 4.5 and Nova Lite; benign control passes | PASS |
-| 8 | Guardrails | ApplyGuardrail prompt guard on `gemma-3-4b-it`, `llama3.2` and `gpt-5.5`: HTTP 403 with custom message, before any upstream call | PASS |
-| 9 | MCP-GW | `/mcp` -> FastMCP on EKS: initialize, tools/list (4 tools), `eks_add` = 42, `eks_runtime_info` shows pod on Graviton (`aarch64`) | PASS |
-| 10 | MCP-GW | `/agentcore/mcp` without token -> 401 at the gateway | PASS |
-| 11 | MCP-GW | `/agentcore/mcp` with Cognito access token (santigrc@amazon.com) -> AgentCore Runtime tools, `agentcore_multiply` = 42, `agentcore_runtime_info` shows `aarch64` | PASS |
-| 12 | Inference routing | `gemma-3-4b-it` -> InferencePool `gemma` (vLLM v0.30.0 on g6.xlarge) | PASS |
-| 13 | Inference routing | `llama3.2` -> InferencePool `ollama` (Ollama 0.34.4 on g6.xlarge); EPP logs show endpoint selection per request | PASS |
-| 14 | Security | EKS `publicAccessCidrs = ["<my-ip>/32"]`; NLB security group ingress = `tcp/80` from `<my-ip>/32` only | PASS |
-| 15 | Security | No AWS key Secrets in the cluster; Cognito `SignUp is not permitted for this user pool`; AgentCore direct call without JWT -> 401 | PASS |
-| 16 | IaC | `terraform plan` on the three stacks after deployment | No changes (idempotent) |
+| 2 | LLM-GW | Bedrock routing `claude-sonnet-4-5`, `claude-haiku-4-5`, `gpt-6-luna`, `gpt-6-sol` (Pod Identity, no keys) | PASS - OpenAI-shaped responses with token usage |
+| 3 | LLM-GW | `gpt-6-luna` and `smart` with `temperature=0.2` + `top_p=0.9` (Bedrock alone answers 400) | PASS - nulled by the gateway (`dropParams`) |
+| 4 | LLM-GW | Virtual `smart`: default -> `us.openai.gpt-6-luna`; header `x-model-tier: premium` -> `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | PASS |
+| 5 | LLM-GW | Virtual `resilient` (failover) served by the priority-0 target (Claude Sonnet 4.5) | PASS |
+| 6 | LLM-GW | SSE streaming through the gateway | PASS |
+| 7 | LLM-GW | Placeholders `gpt-5.5` / `gemini-2.5-flash` reach the provider and fail with `invalid_api_key` / `authentication_error` (placeholder value) | PASS (expected until MANUAL_STEPS) |
+| 8 | Guardrails | Bedrock-native: PII email, denied topic, prompt attack, profanity, custom word blocked on Claude Haiku 4.5 and GPT-6 Luna; benign control passes | PASS |
+| 9 | Guardrails | ApplyGuardrail prompt guard on `gemma-3-4b-it` and `gpt-5.5`: HTTP 403 with custom message, before any upstream call | PASS |
+| 10 | Agents | Strands `agent1.py --model gpt-6-sol`: streaming, Spanish system prompt, 2 tool calls (`consulta_saldo`, `estado_canales`) | PASS |
+| 11 | MCP-GW | `/mcp` -> FastMCP on EKS: initialize, tools/list (4 tools), `eks_add` = 42, `eks_runtime_info` shows pod on Graviton (`aarch64`) | PASS |
+| 12 | MCP-GW | `/agentcore/mcp` without token -> 401 at the gateway | PASS |
+| 13 | MCP-GW | `/agentcore/mcp` with Cognito access token (santigrc@amazon.com) -> AgentCore Runtime tools, `agentcore_multiply` = 42, `agentcore_weather_demo` | PASS |
+| 14 | Inference routing | `gemma-3-4b-it` -> InferencePool `gemma` (vLLM v0.30.0 on g6.xlarge); burst of 6 parallel requests spread by the EPP | PASS |
+| 15 | Inference routing | `llama3.2` -> InferencePool `ollama` (Ollama 0.34.4 on g6.xlarge) | PASS |
+| 16 | Security | EKS `publicAccessCidrs` = the 3 allow-listed `/32`; NLB security group ingress = `tcp/80` from those `/32` only | PASS |
+| 17 | Security | No AWS key Secrets in the cluster; Cognito `SignUp is not permitted for this user pool`; AgentCore direct call without JWT -> 401 | PASS |
+| 18 | IaC | `terraform plan` on the three stacks after deployment | No changes (idempotent) |
+| 19 | All | Postman collection with Newman (`WITH_OBSERVABILITY=1 ./scripts/tests/test-postman.sh`): 65 requests across the 10 folders | PASS - 295 assertions, 0 failures |
 
-Issues found and fixed during the run (kept as lessons in the ADRs and code comments):
+Issues found and fixed during the runs (kept as lessons in the ADRs and code comments):
 
+- OpenAI GPT-6 on Bedrock rejects `temperature`/`topP` and returns `redactedContent` reasoning that agentgateway
+  v1.5.0 cannot parse: handled per model with `dropParams` and `openaiReasoningEffort: none` (see gotchas above).
+- On a fresh cluster the CloudWatch Observability add-on stays `DEGRADED` for a few minutes: Auto Mode `system`
+  nodes carry the `CriticalAddonsOnly` taint, so its pods wait for the first general NodePool node. Terraform keeps
+  waiting and the add-on turns `ACTIVE` on its own (stack 1 took ~27 min in total).
 - EKS Auto Mode rejects NodePools whose `expireAfter + terminationGracePeriod` exceeds 21 days.
 - ECR tag values do not accept parentheses.
 - Kubernetes service links injected `FASTMCP_PORT=tcp://...` into the FastMCP pod (FastMCP reads

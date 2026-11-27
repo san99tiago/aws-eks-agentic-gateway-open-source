@@ -86,7 +86,7 @@ Examples:
   ./scripts/validate_solution_scripts.sh 3
   ./scripts/validate_solution_scripts.sh chat claude-haiku-4-5 "Explain EKS Auto Mode in one sentence"
   ./scripts/validate_solution_scripts.sh chat smart "Hi" "x-model-tier: premium"
-  ./scripts/validate_solution_scripts.sh guard-probe nova-lite "My email is test@example.com"
+  ./scripts/validate_solution_scripts.sh guard-probe gpt-6-luna "My email is test@example.com"
   ./scripts/validate_solution_scripts.sh mcp-tool eks eks_add '{"a": 40, "b": 2}'
   ./scripts/validate_solution_scripts.sh mcp-tool agentcore agentcore_weather_demo '{"city": "Medellin"}'
 HELP
@@ -114,8 +114,9 @@ opt_models() {
 opt_llm() {
   explain "3) LLM Gateway suite (Amazon Bedrock inference profiles)" \
     "Flow: client -> NLB (your IP only) -> agentgateway proxy -> AgentgatewayModel -> Bedrock (SigV4 via EKS Pod Identity)." \
-    "Checks: discovery, chat on claude-sonnet-4-5 / claude-haiku-4-5 / nova-pro / nova-lite, virtual model" \
-    "'smart' (header x-model-tier), virtual model 'resilient' (failover), SSE streaming, and the placeholders."
+    "Checks: discovery, chat on claude-sonnet-4-5 / claude-haiku-4-5 / gpt-6-luna / gpt-6-sol, temperature/top_p" \
+    "dropped for GPT-6, virtual model 'smart' (header x-model-tier), virtual model 'resilient' (failover)," \
+    "SSE streaming, and the placeholders."
   need_gateway || return 1
   run "bash $TESTS/test-llm-gw.sh"
 }
@@ -133,8 +134,9 @@ opt_chat() {
 
 opt_guardrails() {
   explain "5) Amazon Bedrock Guardrails suite" \
-    "One guardrail (agentgateway-santi-open-guardrail v1): harmful content HIGH, prompt attacks, PII (email/cards/SSN" \
-    "BLOCK, phone + Colombian cedula ANONYMIZE), denied topic InvestmentAdvice, profanity, custom word." \
+    "One guardrail (agentgateway-santi-open-guardrail, latest published version): content filters MEDIUM, MISCONDUCT" \
+    "LOW, prompt attacks MEDIUM, PII (email/SSN/AWS keys BLOCK; cards, phone, Colombian cedula ANONYMIZE)," \
+    "denied topic InvestmentAdvice, profanity, custom word (strengths: guardrail_*_strength in platform tfvars)." \
     "Bedrock models -> guardrailConfig on the invocation (HTTP 200 with blocked message)." \
     "Self-hosted / placeholders -> agentgateway calls ApplyGuardrail before the model (HTTP 403 custom message)."
   need_gateway || return 1
@@ -142,7 +144,7 @@ opt_guardrails() {
 }
 
 opt_guard_probe() {
-  local model="${1:-nova-lite}" prompt="${2:-My email is santiago.test@example.com}"
+  local model="${1:-gpt-6-luna}" prompt="${2:-My email is santiago.test@example.com}"
   explain "6) Single guardrail probe" "Sends the prompt to '$model' and shows HTTP code + body so you can see how the block surfaces."
   need_gateway || return 1
   run "curl -s -w '\\n  HTTP %{http_code}\\n' --max-time 180 http://$GW/v1/chat/completions -H 'content-type: application/json' -d '$(chat_json "$model" "$prompt" 150)' | head -c 600"

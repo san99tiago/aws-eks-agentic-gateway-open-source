@@ -1,5 +1,11 @@
 # LLM-GW: Amazon Bedrock models. Guardrail applied NATIVELY by Bedrock (guardrailConfig on the invoke).
 # Auth: implicit AWS credential chain -> EKS Pod Identity role attached to the proxy ServiceAccount.
+# dropParams: request fields the upstream model rejects (OpenAI GPT-6 on Bedrock: temperature, top_p)
+# are set to null on the OpenAI body, so the OpenAI -> Converse translation leaves them out.
+# openaiReasoningEffort: OpenAI-on-Bedrock reasoning effort, injected AFTER the translation as Converse
+# additionalModelRequestFields.reasoning.effort. agentgateway v1.5.0 cannot parse the encrypted
+# reasoningContent.redactedContent blocks GPT-6 returns when it reasons (fixed upstream in v1.6.0 for
+# non-streaming and v1.7.0 for streaming), so the demo pins "none".
 {{- range .Values.bedrockModels }}
 ---
 apiVersion: agentgateway.dev/v1alpha1
@@ -29,6 +35,15 @@ spec:
     transformations:
       - field: model
         expression: {{ printf "%q" .modelId | quote }}
+      {{- range .dropParams }}
+      - field: {{ . }}
+        expression: "null"
+      {{- end }}
+    {{- if .openaiReasoningEffort }}
+    finalTransformations:
+      - field: additionalModelRequestFields
+        expression: {{ printf "{\"reasoning\": {\"effort\": %q}}" .openaiReasoningEffort | quote }}
+    {{- end }}
     health:
       unhealthyCondition: "response.code >= 500"
       eviction:

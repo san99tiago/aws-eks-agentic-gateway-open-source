@@ -58,3 +58,8 @@ assets/_preview.png
 
 # ---- Terraform apply logs ----
 terraform/**/apply-*.log
+
+# ---- Postman / Newman (local env with live endpoints, run reports with Cognito tokens) ----
+postman/*.local.postman_environment.json
+postman/.newman/
+newman/

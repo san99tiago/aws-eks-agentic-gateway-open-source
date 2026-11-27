@@ -67,16 +67,22 @@ variable "gemma_model" {
 }
 
 variable "bedrock_models" {
-  description = "Client-facing name -> Bedrock model id / inference profile."
+  description = "Client-facing name -> Bedrock model id / inference profile. dropParams: OpenAI request fields the upstream model rejects; the gateway nulls them before translating to Converse. openaiReasoningEffort: Converse additionalModelRequestFields.reasoning.effort for OpenAI models."
   type = list(object({
-    name    = string
-    modelId = string
+    name                  = string
+    modelId               = string
+    dropParams            = optional(list(string), [])
+    openaiReasoningEffort = optional(string)
   }))
   default = [
     { name = "claude-sonnet-4-5", modelId = "us.anthropic.claude-sonnet-4-5-20250929-v1:0" },
     { name = "claude-haiku-4-5", modelId = "global.anthropic.claude-haiku-4-5-20251001-v1:0" },
-    { name = "nova-pro", modelId = "us.amazon.nova-pro-v1:0" },
-    { name = "nova-lite", modelId = "us.amazon.nova-lite-v1:0" },
+    # OpenAI GPT-6 served by Amazon Bedrock (inference profiles only, no OpenAI key): Luna = economical
+    # tier, Sol = premium tier. Both answer ValidationException to temperature and topP. Reasoning
+    # effort "none": with any other effort GPT-6 returns reasoningContent.redactedContent, which
+    # agentgateway v1.5.0 fails to parse (fixed in v1.6.0 non-streaming / v1.7.0 streaming).
+    { name = "gpt-6-luna", modelId = "us.openai.gpt-6-luna", dropParams = ["temperature", "top_p"], openaiReasoningEffort = "none" },
+    { name = "gpt-6-sol", modelId = "us.openai.gpt-6-sol", dropParams = ["temperature", "top_p"], openaiReasoningEffort = "none" },
   ]
 }
 

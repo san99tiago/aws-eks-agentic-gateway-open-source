@@ -42,6 +42,36 @@ variable "guardrail_blocked_output_message" {
   default = "[agentgateway-santi-open guardrail] The model response was blocked by Amazon Bedrock Guardrails (output policy)."
 }
 
+variable "guardrail_content_strength" {
+  description = "Strength of HATE/INSULTS/SEXUAL/VIOLENCE filters (NONE, LOW, MEDIUM, HIGH). HIGH blocks LOW-confidence matches."
+  type        = string
+  default     = "MEDIUM"
+  validation {
+    condition     = contains(["NONE", "LOW", "MEDIUM", "HIGH"], var.guardrail_content_strength)
+    error_message = "Must be one of NONE, LOW, MEDIUM, HIGH."
+  }
+}
+
+variable "guardrail_misconduct_strength" {
+  description = "Strength of the MISCONDUCT filter. LOW so banking chat about theft/fraud/blocking cards is not blocked."
+  type        = string
+  default     = "LOW"
+  validation {
+    condition     = contains(["NONE", "LOW", "MEDIUM", "HIGH"], var.guardrail_misconduct_strength)
+    error_message = "Must be one of NONE, LOW, MEDIUM, HIGH."
+  }
+}
+
+variable "guardrail_prompt_attack_strength" {
+  description = "Strength of the PROMPT_ATTACK filter (inputs only)."
+  type        = string
+  default     = "MEDIUM"
+  validation {
+    condition     = contains(["NONE", "LOW", "MEDIUM", "HIGH"], var.guardrail_prompt_attack_strength)
+    error_message = "Must be one of NONE, LOW, MEDIUM, HIGH."
+  }
+}
+
 # ---------------- Container images ----------------
 variable "image_tag" {
   description = "Tag pushed to ECR for both sample MCP servers."

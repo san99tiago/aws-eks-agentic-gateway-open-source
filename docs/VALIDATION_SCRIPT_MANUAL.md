@@ -57,7 +57,7 @@ gateway discovery, Cognito token). Requirements: the three stacks applied, your 
 # Talk to Claude Sonnet 4.5 through the gateway
 ./scripts/validate_solution_scripts.sh chat claude-sonnet-4-5 "Explain agentgateway in one sentence"
 
-# Same request routed by the 'smart' virtual model: premium tier -> Claude, default -> Nova Lite
+# Same request routed by the 'smart' virtual model: premium tier -> Claude, default -> GPT-6 Luna
 ./scripts/validate_solution_scripts.sh chat smart "Which model are you?" "x-model-tier: premium"
 ./scripts/validate_solution_scripts.sh chat smart "Which model are you?"
 

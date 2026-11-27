@@ -36,12 +36,16 @@ This is the operator runbook for `agentgateway-santi-open`. It complements
 
 - Credentials with administrator access to the target account (this repo was deployed to
   `430118815432`, `us-east-1`).
-- Amazon Bedrock model access enabled for **Anthropic Claude** and **Amazon Nova**
-  (console: Bedrock -> Model access). Quick check:
+- Amazon Bedrock model access enabled for **Anthropic Claude** and **OpenAI GPT-6 Luna / Sol**
+  (console: Bedrock -> Model access). Quick check, run with an admin role because the first call to a
+  Marketplace-billed OpenAI model may need `aws-marketplace:Subscribe` (do not pass `temperature`/`topP`,
+  GPT-6 rejects them):
 
   ```bash
-  aws bedrock-runtime converse --region us-east-1 --model-id us.amazon.nova-lite-v1:0 \
-    --messages '[{"role":"user","content":[{"text":"Say OK"}]}]' --query 'output.message.content[0].text'
+  for m in us.openai.gpt-6-luna us.openai.gpt-6-sol; do
+    aws bedrock-runtime converse --region us-east-1 --model-id "$m" \
+      --messages '[{"role":"user","content":[{"text":"Say OK"}]}]' --query 'output.message.content[0].text'
+  done
   ```
 
 - EC2 quota for G instances (`L-DB2E81BA`) >= 8 vCPU (two g6.xlarge).
@@ -81,6 +85,7 @@ Edit `bucket` in the three `terraform/*/versions.tf` and in the `terraform_remot
 | `terraform/kubernetes/terraform.tfvars` | `kubernetes_version` | `1.36` | latest STANDARD_SUPPORT at deploy time |
 | `terraform/platform/terraform.tfvars` | `cognito_demo_user_email` | `santigrc@amazon.com` | password is NOT in git: `cp terraform/platform/secrets.auto.tfvars.example terraform/platform/secrets.auto.tfvars` and set it (or `export TF_VAR_cognito_demo_user_password=...`) |
 | `terraform/platform/terraform.tfvars` | `image_tag` | `v1` | bump to rebuild/push MCP images |
+| `terraform/platform/terraform.tfvars` | `guardrail_content_strength` / `guardrail_misconduct_strength` / `guardrail_prompt_attack_strength` | `MEDIUM` / `LOW` / `MEDIUM` | HIGH blocks LOW-confidence matches; any change publishes a new guardrail version, then re-apply stack 3 |
 | `terraform/agentgateway/terraform.tfvars` | `enable_inference_routing` | `true` | `false` = no GPU nodes (saves ~USD 1.6/h) |
 | `terraform/agentgateway/terraform.tfvars` | `ollama_model` / `gemma_model` | `llama3.2:3b` / `unsloth/gemma-3-4b-it` | |
 | `terraform/agentgateway/variables.tf` | `bedrock_models` | 4 inference profiles | client name -> Bedrock model id |
@@ -176,6 +181,7 @@ kubectl get gateway -n agentgateway-system              # PROGRAMMED=True and an
 kubectl get agentgatewaymodels -A                       # 10 models
 kubectl get pods -n inference                           # gemma-vllm may take ~10 min to become 1/1
 ./scripts/get-gateway-url.sh                            # http://agentgateway-santi-open-nlb-....elb.us-east-1.amazonaws.com
+./scripts/ui.sh                                         # admin UI http://localhost:15000/ui/ + metrics :15020 (port-forward)
 ```
 
 The NLB hostname resolves 2-3 minutes after the Gateway is programmed.
@@ -188,10 +194,12 @@ The NLB hostname resolves 2-3 minutes after the Gateway is programmed.
 ./scripts/validate_solution_scripts.sh            # interactive menu
 ./scripts/validate_solution_scripts.sh all        # full report
 ./scripts/validate_solution_scripts.sh --help     # manual of options
+./scripts/tests/test-postman.sh                   # Postman collection with Newman (65 requests, 295 assertions)
 ```
 
-See [VALIDATION_SCRIPT_MANUAL.md](VALIDATION_SCRIPT_MANUAL.md) for every option and
-[TESTING_INSTRUCTIONS.md](../TESTING_INSTRUCTIONS.md) for the expected results.
+See [VALIDATION_SCRIPT_MANUAL.md](VALIDATION_SCRIPT_MANUAL.md) for every option,
+[TESTING_INSTRUCTIONS.md](../TESTING_INSTRUCTIONS.md) for the expected results and
+[postman/README.md](../postman/README.md) to explore the same calls interactively in Postman.
 
 ---
 
@@ -268,5 +276,8 @@ terraform -chdir=terraform/agentgateway apply
 | `curl: (6) Could not resolve host` for the NLB | DNS not propagated yet | wait 2-3 min or `./scripts/get-gateway-url.sh` |
 | Timeout from your laptop to the NLB / EKS API | your public IP changed | append your `/32` to `allowed_cidrs`; from the new IP first run `terraform -chdir=terraform/kubernetes apply -target='module.eks.aws_eks_cluster.this[0]'` (otherwise the Helm provider cannot reach the API and plans to re-create the NodePools release), then apply stacks 1 and 3 |
 | `gpt-5.5` / `gemini-2.5-flash` return `invalid_api_key` | placeholder key | set the real key in Secrets Manager (MANUAL_STEPS.md) |
+| `gpt-6-*` returns `ValidationException: This model doesn't support the temperature field` | GPT-6 rejects `temperature`/`topP` | keep `dropParams = ["temperature", "top_p"]` on the model in `bedrock_models` |
+| `gpt-6-*` returns `failed to parse response ... ReasoningContentBlock` | GPT-6 reasoned and returned `redactedContent`, which agentgateway v1.5.0 cannot parse | keep `openaiReasoningEffort = "none"`, or upgrade agentgateway to v1.6.0+ (v1.7.0 for streaming) before raising it |
+| Stack 1 waits several minutes on `aws_eks_addon.cloudwatch_observability` (`DEGRADED`) | Auto Mode `system` nodes are tainted `CriticalAddonsOnly`; the add-on pods wait for the first general node | nothing to do: it turns `ACTIVE` by itself (about 8 min on 2026-11-26) |
 | `/agentcore/mcp` returns 401 with a token | ID token instead of ACCESS token, or expired (60 min) | `./scripts/cognito-token.sh` and use `AuthenticationResult.AccessToken` |
 | `terraform init` complains about `use_lockfile` | Terraform < 1.10 | install from `hashicorp/tap` |

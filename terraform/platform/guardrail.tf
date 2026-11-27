@@ -10,19 +10,29 @@ resource "aws_bedrock_guardrail" "this" {
   blocked_input_messaging   = var.guardrail_blocked_input_message
   blocked_outputs_messaging = var.guardrail_blocked_output_message
 
+  # Strength semantics: HIGH blocks even LOW-confidence matches, MEDIUM blocks MEDIUM+HIGH confidence,
+  # LOW blocks only HIGH confidence. On Converse the native guardrail evaluates the WHOLE conversation
+  # (previous assistant turns included), so HIGH everywhere blocked benign banking chat such as
+  # "consultar saldo" once the history mentioned "robo/fraude" (MISCONDUCT at LOW confidence).
   content_policy_config {
     dynamic "filters_config" {
-      for_each = ["HATE", "INSULTS", "SEXUAL", "VIOLENCE", "MISCONDUCT"]
+      for_each = ["HATE", "INSULTS", "SEXUAL", "VIOLENCE"]
       content {
         type            = filters_config.value
-        input_strength  = "HIGH"
-        output_strength = "HIGH"
+        input_strength  = var.guardrail_content_strength
+        output_strength = var.guardrail_content_strength
       }
+    }
+    # Banking conversations legitimately mention theft, fraud, blocking cards: keep MISCONDUCT permissive.
+    filters_config {
+      type            = "MISCONDUCT"
+      input_strength  = var.guardrail_misconduct_strength
+      output_strength = var.guardrail_misconduct_strength
     }
     # Prompt attacks (jailbreak / prompt injection) can only be evaluated on inputs
     filters_config {
       type            = "PROMPT_ATTACK"
-      input_strength  = "HIGH"
+      input_strength  = var.guardrail_prompt_attack_strength
       output_strength = "NONE"
     }
   }
@@ -32,9 +42,10 @@ resource "aws_bedrock_guardrail" "this" {
       type   = "EMAIL"
       action = "BLOCK"
     }
+    # ANONYMIZE (not BLOCK): "tarjeta terminada en 4321" is a normal banking request; the digits get masked.
     pii_entities_config {
       type   = "CREDIT_DEBIT_CARD_NUMBER"
-      action = "BLOCK"
+      action = "ANONYMIZE"
     }
     pii_entities_config {
       type   = "US_SOCIAL_SECURITY_NUMBER"
@@ -85,8 +96,14 @@ resource "aws_bedrock_guardrail" "this" {
   tags = local.tags
 }
 
+# A guardrail version is an immutable snapshot. Any change to the guardrail above replaces this resource,
+# which publishes a NEW version number; stack 3 reads it from remote state and re-renders the models.
 resource "aws_bedrock_guardrail_version" "this" {
   guardrail_arn = aws_bedrock_guardrail.this.guardrail_arn
-  description   = "v1 - initial policies for agentgateway-santi-open"
-  skip_destroy  = false
+  description   = "Published from Terraform for agentgateway-santi-open (${var.guardrail_content_strength}/${var.guardrail_misconduct_strength}/${var.guardrail_prompt_attack_strength})"
+  skip_destroy  = true # keep old versions so the gateway never points at a deleted version between applies
+
+  lifecycle {
+    replace_triggered_by = [aws_bedrock_guardrail.this]
+  }
 }

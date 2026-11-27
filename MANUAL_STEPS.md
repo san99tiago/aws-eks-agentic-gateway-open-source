@@ -56,10 +56,15 @@ Kubernetes secret: `agentgateway-system/gemini-secret`.
 
 ## 4. Confirm Amazon Bedrock model access (one time per account)
 
-Bedrock model access is account-wide. The models used (`anthropic.claude-*`, `amazon.nova-*`)
-were already enabled in this account (verified with a `converse` call before deploying). In a new
-account open <https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess>
-and enable **Anthropic Claude** and **Amazon Nova** models.
+Bedrock model access is account-wide. The models used (`anthropic.claude-*`, `openai.gpt-6-luna`,
+`openai.gpt-6-sol`) were already enabled in this account (verified with a `converse` call before deploying).
+OpenAI GPT-6 models are billed as AWS Marketplace usage and only offer inference profiles (`us.`/`global.`).
+If the account is not subscribed yet, the first call needs a principal with AWS Marketplace permissions
+(`aws-marketplace:Subscribe`), so make it once with an admin role: the gateway role only has Bedrock
+permissions. In a new account open
+<https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess> and enable
+**Anthropic Claude** and **OpenAI GPT-6 Luna / Sol**. Note that GPT-6 rejects `temperature` and `topP`
+(the gateway drops them, see README).
 
 ## 5. Update your public IP when it changes
 
@@ -83,5 +88,5 @@ terraform -chdir=terraform/agentgateway apply   # NLB loadBalancerSourceRanges (
 | 2 Gemini key | Not set (placeholder). Same behavior. |
 | 3 Gated Gemma | Not needed (ungated mirror in use). |
 | 4 Bedrock access | Already enabled, verified. |
-| 5 IP allow-list | `181.137.32.97/32` (home) and `186.121.142.180/32` (ces-clinic) configured on 2026-09-28. |
+| 5 IP allow-list | `181.137.32.97/32` (home), `186.121.142.180/32` and `190.146.141.165/32` (ces-clinic, the clinic rotates its egress IP) configured on 2026-09-28. |
 | 0 Demo password | Set locally in `secrets.auto.tfvars` (not committed). |

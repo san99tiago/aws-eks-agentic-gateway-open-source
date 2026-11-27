@@ -4,5 +4,6 @@ name_prefix        = "agentgateway-santi-open"
 kubernetes_version = "1.36"
 allowed_cidrs = [
   "181.137.32.97/32",   # home
-  "186.121.142.180/32", # ces-clinic
+  "186.121.142.180/32", # ces-clinic (egress 1)
+  "190.146.141.165/32", # ces-clinic (egress 2, the clinic rotates its public IP)
 ]
